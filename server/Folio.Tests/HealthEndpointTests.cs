@@ -1,14 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Folio.Tests;
 
-public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public class HealthEndpointTests : IClassFixture<FolioApiFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly FolioApiFactory _factory;
 
-    public HealthEndpointTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public HealthEndpointTests(FolioApiFactory factory) => _factory = factory;
 
     [Fact]
     public async Task Health_returns_ok_status()
