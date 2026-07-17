@@ -1,9 +1,17 @@
+using Folio.Infrastructure;
+using Folio.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 const string ClientCorsPolicy = "client";
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
+
+var connectionString = builder.Configuration.GetConnectionString("Folio")
+    ?? "Data Source=folio.db";
+builder.Services.AddFolioInfrastructure(connectionString);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(ClientCorsPolicy, policy =>
@@ -23,6 +31,17 @@ app.UseCors(ClientCorsPolicy);
 app.MapGet("/health", () => Results.Ok(new HealthResponse("ok")));
 
 app.MapControllers();
+
+// Apply migrations and seed development data at startup.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FolioDbContext>();
+    db.Database.Migrate();
+    if (app.Environment.IsDevelopment())
+    {
+        DbSeeder.Seed(db);
+    }
+}
 
 app.Run();
 
