@@ -62,6 +62,24 @@ public class WorkspacesController(FolioDbContext db, PageService pages, ICurrent
         return workspace is null ? NotFound() : Ok(workspace);
     }
 
+    /// <summary>Members of the caller's workspace (used by the @mention picker).</summary>
+    [HttpGet("{workspaceId:guid}/members")]
+    public async Task<ActionResult<IReadOnlyList<MemberResponse>>> Members(Guid workspaceId, CancellationToken ct)
+    {
+        if (current.Member?.WorkspaceId != workspaceId)
+        {
+            return NotFound();
+        }
+
+        var members = await db.Members
+            .Where(m => m.WorkspaceId == workspaceId)
+            .OrderBy(m => m.Name)
+            .Select(m => new MemberResponse(m.Id, m.WorkspaceId, m.Name, m.Email, m.Role))
+            .ToListAsync(ct);
+
+        return Ok(members);
+    }
+
     /// <summary>Pages currently in the workspace's trash (roots of trashed subtrees).</summary>
     [HttpGet("{workspaceId:guid}/trash")]
     public async Task<ActionResult<IReadOnlyList<TrashItemResponse>>> Trash(Guid workspaceId, CancellationToken ct)

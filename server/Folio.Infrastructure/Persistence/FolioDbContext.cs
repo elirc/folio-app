@@ -10,6 +10,8 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
     public DbSet<Page> Pages => Set<Page>();
     public DbSet<Block> Blocks => Set<Block>();
     public DbSet<PageVersion> PageVersions => Set<PageVersion>();
+    public DbSet<Comment> Comments => Set<Comment>();
+    public DbSet<CommentMention> CommentMentions => Set<CommentMention>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -114,6 +116,44 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(v => new { v.PageId, v.VersionNumber }).IsUnique();
+        });
+
+        modelBuilder.Entity<Comment>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Body).IsRequired().HasMaxLength(4000);
+            e.Property(c => c.AuthorName).IsRequired().HasMaxLength(200);
+
+            e.HasOne(c => c.Page)
+                .WithMany()
+                .HasForeignKey(c => c.PageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Replies: restrict so a thread root isn't silently cascade-deleted;
+            // reply cleanup is handled explicitly in CommentService.
+            e.HasOne(c => c.Parent)
+                .WithMany(c => c.Replies)
+                .HasForeignKey(c => c.ParentCommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(c => new { c.PageId, c.BlockId });
+        });
+
+        modelBuilder.Entity<CommentMention>(e =>
+        {
+            e.HasKey(m => m.Id);
+
+            e.HasOne(m => m.Comment)
+                .WithMany(c => c.Mentions)
+                .HasForeignKey(m => m.CommentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(m => m.Member)
+                .WithMany()
+                .HasForeignKey(m => m.MemberId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(m => new { m.CommentId, m.MemberId }).IsUnique();
         });
     }
 }
