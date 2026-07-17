@@ -10,6 +10,7 @@ Thumbs.db
 node_modules/
 client/dist/
 client/coverage/
+*.tsbuildinfo
 *.local
 .pnpm-store/
 npm-debug.log*
