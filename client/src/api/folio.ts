@@ -7,6 +7,7 @@ import type {
   LoginInput,
   LoginResponse,
   Member,
+  MoveBlockInput,
   MovePageInput,
   PageDetail,
   PageTreeNode,
@@ -60,8 +61,8 @@ export const createBlock = (pageId: string, input: CreateBlockInput) =>
 export const updateBlock = (blockId: string, input: UpdateBlockInput) =>
   api.put<Block>(`/api/blocks/${blockId}`, input);
 
-export const moveBlock = (blockId: string, position: number) =>
-  api.post<Block>(`/api/blocks/${blockId}/move`, { position });
+export const moveBlock = (blockId: string, input: MoveBlockInput) =>
+  api.post<Block>(`/api/blocks/${blockId}/move`, input);
 
 export const deleteBlock = (blockId: string) => api.delete<void>(`/api/blocks/${blockId}`);
 

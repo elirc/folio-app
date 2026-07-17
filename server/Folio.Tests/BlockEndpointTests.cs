@@ -120,4 +120,121 @@ public class BlockEndpointTests : IDisposable
         Assert.DoesNotContain(remaining, b => b.Id == first.Id);
         Assert.Equal([0, 1, 2, 3], remaining.Select(b => b.Position));
     }
+
+    // ---- v2 block types + nesting ----
+
+    private async Task<List<BlockResponse>> GetBlocksForAsync(Guid pageId) =>
+        (await _client.GetFromJsonAsync<List<BlockResponse>>($"/api/pages/{pageId}/blocks", TestJson.Options))!;
+
+    [Fact]
+    public async Task Seeded_configuration_page_has_v2_types_and_nested_children()
+    {
+        var blocks = await GetBlocksForAsync(DbSeeder.ConfigurationId);
+
+        // Callout, Toggle + 2 children, Divider, Image, Table = 7 blocks total.
+        Assert.Equal(7, blocks.Count);
+        Assert.Contains(blocks, b => b.Type == BlockType.Callout);
+        Assert.Contains(blocks, b => b.Type == BlockType.Divider);
+        Assert.Contains(blocks, b => b.Type == BlockType.Image);
+        Assert.Contains(blocks, b => b.Type == BlockType.Table);
+
+        var toggle = Assert.Single(blocks, b => b.Type == BlockType.Toggle);
+        var children = blocks.Where(b => b.ParentBlockId == toggle.Id).ToList();
+        Assert.Equal(2, children.Count);
+        // Pre-order DFS: the toggle appears immediately before its children.
+        var toggleIndex = blocks.FindIndex(b => b.Id == toggle.Id);
+        Assert.Equal(toggle.Id, blocks[toggleIndex + 1].ParentBlockId);
+    }
+
+    [Fact]
+    public async Task Create_child_under_toggle_nests_it()
+    {
+        var toggle = await CreateToggleAsync();
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/pages/{PageId}/blocks",
+            new { type = "Paragraph", content = new { text = "inside toggle" }, parentId = toggle.Id });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var child = await response.Content.ReadFromJsonAsync<BlockResponse>(TestJson.Options);
+        Assert.Equal(toggle.Id, child!.ParentBlockId);
+        Assert.Equal(0, child.Position);
+    }
+
+    [Fact]
+    public async Task Create_child_under_non_toggle_is_rejected()
+    {
+        var blocks = await GetBlocksAsync();
+        var paragraph = blocks.First(b => b.Type == BlockType.Paragraph);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/pages/{PageId}/blocks",
+            new { type = "Paragraph", content = new { text = "nope" }, parentId = paragraph.Id });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Move_block_between_parents_reindexes_both_groups()
+    {
+        var toggle = await CreateToggleAsync();
+
+        // A root paragraph moved under the toggle becomes its child at position 0.
+        var blocks = await GetBlocksAsync();
+        var paragraph = blocks.First(b => b.Type == BlockType.Paragraph);
+
+        var move = await _client.PostAsJsonAsync(
+            $"/api/blocks/{paragraph.Id}/move",
+            new { position = 0, parentId = toggle.Id });
+        Assert.Equal(HttpStatusCode.OK, move.StatusCode);
+
+        var moved = await move.Content.ReadFromJsonAsync<BlockResponse>(TestJson.Options);
+        Assert.Equal(toggle.Id, moved!.ParentBlockId);
+
+        var all = await GetBlocksAsync();
+        var roots = all.Where(b => b.ParentBlockId == null).OrderBy(b => b.Position).ToList();
+        Assert.Equal(Enumerable.Range(0, roots.Count), roots.Select(b => b.Position));
+    }
+
+    [Fact]
+    public async Task Move_toggle_into_its_own_descendant_is_rejected()
+    {
+        var toggle = await CreateToggleAsync();
+        var childResponse = await _client.PostAsJsonAsync(
+            $"/api/pages/{PageId}/blocks",
+            new { type = "Toggle", content = new { text = "child toggle", collapsed = false }, parentId = toggle.Id });
+        var child = await childResponse.Content.ReadFromJsonAsync<BlockResponse>(TestJson.Options);
+
+        var move = await _client.PostAsJsonAsync(
+            $"/api/blocks/{toggle.Id}/move",
+            new { position = 0, parentId = child!.Id });
+
+        Assert.Equal(HttpStatusCode.BadRequest, move.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_toggle_removes_its_child_subtree()
+    {
+        var toggle = await CreateToggleAsync();
+        await _client.PostAsJsonAsync(
+            $"/api/pages/{PageId}/blocks",
+            new { type = "Paragraph", content = new { text = "child" }, parentId = toggle.Id });
+
+        var before = await GetBlocksAsync();
+        Assert.Contains(before, b => b.ParentBlockId == toggle.Id);
+
+        await _client.DeleteAsync($"/api/blocks/{toggle.Id}");
+
+        var after = await GetBlocksAsync();
+        Assert.DoesNotContain(after, b => b.Id == toggle.Id);
+        Assert.DoesNotContain(after, b => b.ParentBlockId == toggle.Id);
+    }
+
+    private async Task<BlockResponse> CreateToggleAsync()
+    {
+        var response = await _client.PostAsJsonAsync(
+            $"/api/pages/{PageId}/blocks",
+            new { type = "Toggle", content = new { text = "Toggle", collapsed = false } });
+        return (await response.Content.ReadFromJsonAsync<BlockResponse>(TestJson.Options))!;
+    }
 }

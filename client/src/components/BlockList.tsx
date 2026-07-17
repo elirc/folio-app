@@ -1,20 +1,27 @@
 import type { Block, BlockContent, BlockType } from "../api/types";
 import { createBlock, getBlocks } from "../api/folio";
 import { useAsync } from "../hooks/useAsync";
-import { BlockItem } from "./BlockItem";
+import { AddBlockBar } from "./AddBlockBar";
+import { BlockTree } from "./BlockTree";
 
 interface BlockListProps {
   pageId: string;
 }
 
-const ADD_OPTIONS: { type: BlockType; label: string; content: BlockContent }[] = [
-  { type: "Paragraph", label: "Text", content: { text: "" } },
-  { type: "Heading", label: "Heading", content: { text: "", level: 2 } },
-  { type: "Todo", label: "To-do", content: { text: "", checked: false } },
-  { type: "Bulleted", label: "Bullet", content: { text: "" } },
-  { type: "Quote", label: "Quote", content: { text: "" } },
-  { type: "Code", label: "Code", content: { text: "", language: "text" } },
-];
+/** Groups a flat block list by parent so the tree can be rendered recursively. */
+export function childrenByParent(blocks: Block[]): Map<string | null, Block[]> {
+  const map = new Map<string | null, Block[]>();
+  for (const block of blocks) {
+    const key = block.parentBlockId;
+    const list = map.get(key) ?? [];
+    list.push(block);
+    map.set(key, list);
+  }
+  for (const list of map.values()) {
+    list.sort((a, b) => a.position - b.position);
+  }
+  return map;
+}
 
 export function BlockList({ pageId }: BlockListProps) {
   const { data, error, loading, reload } = useAsync<Block[]>(
@@ -22,7 +29,7 @@ export function BlockList({ pageId }: BlockListProps) {
     [pageId],
   );
 
-  async function add(type: BlockType, content: BlockContent) {
+  async function addRoot(type: BlockType, content: BlockContent) {
     await createBlock(pageId, { type, content });
     reload();
   }
@@ -34,34 +41,18 @@ export function BlockList({ pageId }: BlockListProps) {
     return <p className="error-text">Could not load blocks.</p>;
   }
 
+  const byParent = childrenByParent(data);
+  const roots = byParent.get(null) ?? [];
+
   return (
     <div className="block-list">
       {data.length === 0 ? (
         <p className="muted">No blocks yet — add one below.</p>
       ) : (
-        data.map((block, index) => (
-          <BlockItem
-            key={block.id}
-            block={block}
-            index={index}
-            total={data.length}
-            onChanged={reload}
-          />
-        ))
+        <BlockTree pageId={pageId} blocks={roots} byParent={byParent} onChanged={reload} />
       )}
 
-      <div className="add-block-bar" role="toolbar" aria-label="Add block">
-        {ADD_OPTIONS.map((option) => (
-          <button
-            key={option.type}
-            type="button"
-            className="add-block-btn"
-            onClick={() => add(option.type, option.content)}
-          >
-            + {option.label}
-          </button>
-        ))}
-      </div>
+      <AddBlockBar onAdd={addRoot} />
     </div>
   );
 }

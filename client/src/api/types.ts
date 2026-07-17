@@ -107,7 +107,18 @@ export interface MovePageInput {
   position: number;
 }
 
-export type BlockType = "Paragraph" | "Heading" | "Todo" | "Bulleted" | "Quote" | "Code";
+export type BlockType =
+  | "Paragraph"
+  | "Heading"
+  | "Todo"
+  | "Bulleted"
+  | "Quote"
+  | "Code"
+  | "Table"
+  | "Toggle"
+  | "Callout"
+  | "Divider"
+  | "Image";
 
 /** Permissive view of a block's type-specific JSON payload. */
 export interface BlockContent {
@@ -115,11 +126,18 @@ export interface BlockContent {
   level?: number;
   checked?: boolean;
   language?: string;
+  // v2 payloads
+  rows?: string[][];
+  collapsed?: boolean;
+  emoji?: string;
+  url?: string;
+  alt?: string;
 }
 
 export interface Block {
   id: string;
   pageId: string;
+  parentBlockId: string | null;
   type: BlockType;
   position: number;
   content: BlockContent;
@@ -131,9 +149,15 @@ export interface CreateBlockInput {
   type: BlockType;
   content: BlockContent;
   position?: number;
+  parentId?: string | null;
 }
 
 export interface UpdateBlockInput {
   type?: BlockType;
   content: BlockContent;
+}
+
+export interface MoveBlockInput {
+  position: number;
+  parentId?: string | null;
 }

@@ -87,7 +87,15 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
                 .HasForeignKey(b => b.PageId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            e.HasIndex(b => new { b.PageId, b.Position });
+            // Self-referencing block tree (children under a Toggle). Restrict so
+            // deleting a parent never silently cascades away children in the
+            // database — subtree removal is handled explicitly in BlockService.
+            e.HasOne(b => b.Parent)
+                .WithMany(b => b.Children)
+                .HasForeignKey(b => b.ParentBlockId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(b => new { b.PageId, b.ParentBlockId, b.Position });
         });
     }
 }
