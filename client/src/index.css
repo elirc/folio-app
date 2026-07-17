@@ -240,3 +240,113 @@ a:hover {
 .empty-state {
   padding-top: 2rem;
 }
+
+/* ---- Blocks ---- */
+.block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.block {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  border-radius: 6px;
+  padding: 0.1rem 0.2rem;
+}
+.block:hover {
+  background: #fafbfc;
+}
+.block-gutter {
+  display: inline-flex;
+  gap: 0.1rem;
+  opacity: 0;
+  padding-top: 0.2rem;
+}
+.block:hover .block-gutter {
+  opacity: 1;
+}
+.block-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+}
+.block-check {
+  margin-top: 0.5rem;
+}
+.block-bullet {
+  line-height: 1.9;
+  color: var(--muted);
+}
+.block-lang {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  padding-top: 0.5rem;
+}
+.block-text {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.6;
+  padding: 0.25rem 0.35rem;
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+}
+.block-text:focus {
+  background: #f2f6ff;
+}
+.block-text.heading {
+  font-weight: 700;
+}
+.block-text.heading.h1 {
+  font-size: 1.6rem;
+}
+.block-text.heading.h2 {
+  font-size: 1.3rem;
+}
+.block-text.heading.h3 {
+  font-size: 1.1rem;
+}
+.block-text.done {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.block-quote .block-text {
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+  font-style: italic;
+}
+.block-text.code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  background: #f6f8fa;
+  white-space: pre;
+}
+.add-block-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+.add-block-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--fg);
+}
+.add-block-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

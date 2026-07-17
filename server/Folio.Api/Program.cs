@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Folio.Infrastructure;
 using Folio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +7,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 const string ClientCorsPolicy = "client";
 
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
 
 var connectionString = builder.Configuration.GetConnectionString("Folio")
@@ -14,6 +18,7 @@ var connectionString = builder.Configuration.GetConnectionString("Folio")
 builder.Services.AddFolioInfrastructure(connectionString);
 
 builder.Services.AddScoped<Folio.Api.Services.PageService>();
+builder.Services.AddScoped<Folio.Api.Services.BlockService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(ClientCorsPolicy, policy =>

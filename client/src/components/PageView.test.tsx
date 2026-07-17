@@ -24,7 +24,7 @@ const pageDetail = {
 
 describe("PageView", () => {
   it("renders breadcrumb and editable title", async () => {
-    installFetchMock({ "/api/pages/p2": { json: pageDetail } });
+    installFetchMock({ "/api/pages/p2": { json: pageDetail }, "/api/pages/p2/blocks": { json: [] } });
     renderWithRouter(<PageView pageId="p2" workspaceId="w1" onChanged={vi.fn()} />);
 
     expect(await screen.findByDisplayValue("Installation")).toBeInTheDocument();

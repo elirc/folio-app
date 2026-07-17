@@ -1,9 +1,12 @@
 import { api } from "./client";
 import type {
+  Block,
+  CreateBlockInput,
   CreatePageInput,
   MovePageInput,
   PageDetail,
   PageTreeNode,
+  UpdateBlockInput,
   UpdatePageInput,
   WorkspaceSummary,
 } from "./types";
@@ -30,3 +33,19 @@ export const movePage = (pageId: string, input: MovePageInput) =>
   api.post<PageDetail>(`/api/pages/${pageId}/move`, input);
 
 export const deletePage = (pageId: string) => api.delete<void>(`/api/pages/${pageId}`);
+
+// ---- blocks ----
+
+export const getBlocks = (pageId: string, signal?: AbortSignal) =>
+  api.get<Block[]>(`/api/pages/${pageId}/blocks`, signal);
+
+export const createBlock = (pageId: string, input: CreateBlockInput) =>
+  api.post<Block>(`/api/pages/${pageId}/blocks`, input);
+
+export const updateBlock = (blockId: string, input: UpdateBlockInput) =>
+  api.put<Block>(`/api/blocks/${blockId}`, input);
+
+export const moveBlock = (blockId: string, position: number) =>
+  api.post<Block>(`/api/blocks/${blockId}/move`, { position });
+
+export const deleteBlock = (blockId: string) => api.delete<void>(`/api/blocks/${blockId}`);
