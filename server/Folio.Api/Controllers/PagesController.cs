@@ -60,7 +60,7 @@ public class PagesController(PageService pages) : ControllerBase
         return MapToDetail(result);
     }
 
-    /// <summary>Delete a page and its subtree.</summary>
+    /// <summary>Move a page and its subtree to the trash (soft delete).</summary>
     [HttpDelete("/api/pages/{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
@@ -72,6 +72,37 @@ public class PagesController(PageService pages) : ControllerBase
             _ => Problem(statusCode: 400, detail: result.Error),
         };
     }
+
+    /// <summary>Restore a page (and its subtree) from the trash.</summary>
+    [HttpPost("/api/pages/{id:guid}/restore")]
+    public async Task<ActionResult<PageDetailResponse>> Restore(Guid id, CancellationToken ct)
+    {
+        var result = await pages.RestoreAsync(id, ct);
+        return MapToDetail(result);
+    }
+
+    /// <summary>Set a page's sharing/visibility.</summary>
+    [HttpPut("/api/pages/{id:guid}/share")]
+    public async Task<ActionResult<ShareResponse>> Share(Guid id, [FromBody] ShareRequest request, CancellationToken ct)
+    {
+        var result = await pages.SetShareAsync(id, request, ct);
+        return result.Status switch
+        {
+            OperationStatus.Success => Ok(result.Value),
+            OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            _ => Problem(statusCode: 400, detail: result.Error),
+        };
+    }
+
+    /// <summary>Mark a page as a favorite.</summary>
+    [HttpPost("/api/pages/{id:guid}/favorite")]
+    public async Task<ActionResult<PageDetailResponse>> Favorite(Guid id, CancellationToken ct) =>
+        MapToDetail(await pages.SetFavoriteAsync(id, true, ct));
+
+    /// <summary>Remove a page from favorites.</summary>
+    [HttpDelete("/api/pages/{id:guid}/favorite")]
+    public async Task<ActionResult<PageDetailResponse>> Unfavorite(Guid id, CancellationToken ct) =>
+        MapToDetail(await pages.SetFavoriteAsync(id, false, ct));
 
     private ActionResult<PageDetailResponse> MapToDetail(ServiceResult<PageDetailResponse> result) =>
         result.Status switch

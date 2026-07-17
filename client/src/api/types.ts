@@ -7,12 +7,16 @@ export interface WorkspaceSummary {
   createdAt: string;
 }
 
+export type PageVisibility = "Private" | "Workspace" | "Public";
+export type SharePermission = "View" | "Edit";
+
 export interface PageTreeNode {
   id: string;
   parentId: string | null;
   title: string;
   icon: string | null;
   position: number;
+  isFavorite: boolean;
   children: PageTreeNode[];
 }
 
@@ -29,9 +33,40 @@ export interface PageDetail {
   title: string;
   icon: string | null;
   position: number;
+  visibility: PageVisibility;
+  permission: SharePermission;
+  publicSlug: string | null;
+  isFavorite: boolean;
   createdAt: string;
   updatedAt: string;
   breadcrumb: BreadcrumbItem[];
+}
+
+export interface ShareSettings {
+  visibility: PageVisibility;
+  permission: SharePermission;
+  publicSlug: string | null;
+}
+
+export interface SearchResult {
+  pageId: string;
+  title: string;
+  icon: string | null;
+  matchedTitle: boolean;
+  snippet: string | null;
+}
+
+export interface TrashItem {
+  id: string;
+  title: string;
+  icon: string | null;
+  deletedAt: string | null;
+}
+
+export interface Favorite {
+  id: string;
+  title: string;
+  icon: string | null;
 }
 
 export interface CreatePageInput {

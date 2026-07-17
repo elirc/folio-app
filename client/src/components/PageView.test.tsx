@@ -14,6 +14,10 @@ const pageDetail = {
   title: "Installation",
   icon: "📦",
   position: 0,
+  visibility: "Workspace",
+  permission: "View",
+  publicSlug: null,
+  isFavorite: false,
   createdAt: "",
   updatedAt: "",
   breadcrumb: [

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Folio.Domain.Enums;
 
 namespace Folio.Api.Contracts;
 
@@ -9,6 +10,7 @@ public record PageTreeNode(
     string Title,
     string? Icon,
     int Position,
+    bool IsFavorite,
     IReadOnlyList<PageTreeNode> Children);
 
 /// <summary>A single ancestor entry for breadcrumbs.</summary>
@@ -22,6 +24,10 @@ public record PageDetailResponse(
     string Title,
     string? Icon,
     int Position,
+    PageVisibility Visibility,
+    SharePermission Permission,
+    string? PublicSlug,
+    bool IsFavorite,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     IReadOnlyList<BreadcrumbItem> Breadcrumb);

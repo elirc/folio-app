@@ -1,5 +1,6 @@
 using Folio.Api.Contracts;
 using Folio.Domain.Entities;
+using Folio.Domain.Enums;
 using Folio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,7 +22,7 @@ public class PageService(FolioDbContext db)
         var pages = await db.Pages
             .Where(p => p.WorkspaceId == workspaceId)
             .OrderBy(p => p.Position)
-            .Select(p => new { p.Id, p.ParentId, p.Title, p.Icon, p.Position })
+            .Select(p => new { p.Id, p.ParentId, p.Title, p.Icon, p.Position, p.IsFavorite })
             .ToListAsync(ct);
 
         // ToLookup (unlike Dictionary) permits a null key, which is what root
@@ -33,7 +34,7 @@ public class PageService(FolioDbContext db)
 
         IReadOnlyList<PageTreeNode> Build(Guid? parentId) =>
             childrenByParent[parentId]
-                .Select(k => new PageTreeNode(k.Id, k.ParentId, k.Title, k.Icon, k.Position, Build(k.Id)))
+                .Select(k => new PageTreeNode(k.Id, k.ParentId, k.Title, k.Icon, k.Position, k.IsFavorite, Build(k.Id)))
                 .ToList();
 
         return Build(null);
@@ -154,6 +155,7 @@ public class PageService(FolioDbContext db)
         return ServiceResult<PageDetailResponse>.Ok(await ToDetailAsync(page, ct));
     }
 
+    /// <summary>Soft-deletes a page and its subtree (moves them to the trash).</summary>
     public async Task<ServiceResult<bool>> DeleteAsync(Guid pageId, CancellationToken ct)
     {
         var page = await db.Pages.FirstOrDefaultAsync(p => p.Id == pageId, ct);
@@ -165,23 +167,153 @@ public class PageService(FolioDbContext db)
         var subtreeIds = await DescendantIdsAsync(page.WorkspaceId, pageId, ct);
         subtreeIds.Add(pageId);
 
-        // Delete deepest-first so the self-referencing FK (Restrict) is never violated.
         var subtree = await db.Pages
             .Where(p => subtreeIds.Contains(p.Id))
             .ToListAsync(ct);
-        var depth = DepthByPage(subtree);
-        foreach (var p in subtree.OrderByDescending(p => depth[p.Id]))
+        var when = Now;
+        foreach (var p in subtree)
         {
-            db.Pages.Remove(p); // blocks cascade via FK
+            p.IsDeleted = true;
+            p.DeletedAt = when;
         }
 
         await db.SaveChangesAsync(ct);
 
+        // Remaining siblings (query filter already hides the just-trashed page).
         var remaining = await SiblingsAsync(page.WorkspaceId, page.ParentId, excluding: null, ct);
         Reindex(remaining);
         await db.SaveChangesAsync(ct);
 
         return ServiceResult<bool>.Ok(true);
+    }
+
+    /// <summary>Restores a trashed page (and its trashed subtree) to the tree.</summary>
+    public async Task<ServiceResult<PageDetailResponse>> RestoreAsync(Guid pageId, CancellationToken ct)
+    {
+        var page = await db.Pages
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.Id == pageId && p.IsDeleted, ct);
+        if (page is null)
+        {
+            return ServiceResult<PageDetailResponse>.NotFound("Trashed page not found.");
+        }
+
+        // If the parent is missing or still trashed, restore to the root so the
+        // page never dangles under a deleted ancestor.
+        var parentAlive = page.ParentId is Guid parentId
+            && await db.Pages.AnyAsync(p => p.Id == parentId, ct);
+        if (!parentAlive)
+        {
+            page.ParentId = null;
+        }
+
+        var subtreeIds = await DeletedDescendantIdsAsync(page.WorkspaceId, pageId, ct);
+        subtreeIds.Add(pageId);
+        var subtree = await db.Pages
+            .IgnoreQueryFilters()
+            .Where(p => subtreeIds.Contains(p.Id))
+            .ToListAsync(ct);
+        foreach (var p in subtree)
+        {
+            p.IsDeleted = false;
+            p.DeletedAt = null;
+        }
+
+        // Append the restored root at the end of its (now live) sibling list.
+        var siblings = await SiblingsAsync(page.WorkspaceId, page.ParentId, excluding: pageId, ct);
+        page.Position = siblings.Count;
+        page.UpdatedAt = Now;
+
+        await db.SaveChangesAsync(ct);
+        return ServiceResult<PageDetailResponse>.Ok(await ToDetailAsync(page, ct));
+    }
+
+    /// <summary>Lists the roots of trashed subtrees for a workspace.</summary>
+    public async Task<IReadOnlyList<TrashItemResponse>?> GetTrashAsync(Guid workspaceId, CancellationToken ct)
+    {
+        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        {
+            return null;
+        }
+
+        var deleted = await db.Pages
+            .IgnoreQueryFilters()
+            .Where(p => p.WorkspaceId == workspaceId && p.IsDeleted)
+            .Select(p => new { p.Id, p.ParentId, p.Title, p.Icon, p.DeletedAt })
+            .ToListAsync(ct);
+
+        var deletedIds = deleted.Select(p => p.Id).ToHashSet();
+
+        // Only surface the top of each trashed subtree (its parent isn't itself trashed).
+        return deleted
+            .Where(p => p.ParentId is null || !deletedIds.Contains(p.ParentId.Value))
+            .OrderByDescending(p => p.DeletedAt)
+            .Select(p => new TrashItemResponse(p.Id, p.Title, p.Icon, p.DeletedAt))
+            .ToList();
+    }
+
+    public async Task<ServiceResult<ShareResponse>> SetShareAsync(Guid pageId, ShareRequest request, CancellationToken ct)
+    {
+        var page = await db.Pages.FirstOrDefaultAsync(p => p.Id == pageId, ct);
+        if (page is null)
+        {
+            return ServiceResult<ShareResponse>.NotFound("Page not found.");
+        }
+
+        page.Visibility = request.Visibility!.Value;
+        page.Permission = request.Permission!.Value;
+
+        // Public pages get a stable slug; non-public pages drop theirs.
+        if (page.Visibility == PageVisibility.Public)
+        {
+            page.PublicSlug ??= NewSlug();
+        }
+        else
+        {
+            page.PublicSlug = null;
+        }
+
+        page.UpdatedAt = Now;
+        await db.SaveChangesAsync(ct);
+
+        return ServiceResult<ShareResponse>.Ok(new ShareResponse(page.Visibility, page.Permission, page.PublicSlug));
+    }
+
+    public async Task<ServiceResult<PageDetailResponse>> SetFavoriteAsync(Guid pageId, bool isFavorite, CancellationToken ct)
+    {
+        var page = await db.Pages.FirstOrDefaultAsync(p => p.Id == pageId, ct);
+        if (page is null)
+        {
+            return ServiceResult<PageDetailResponse>.NotFound("Page not found.");
+        }
+
+        page.IsFavorite = isFavorite;
+        page.UpdatedAt = Now;
+        await db.SaveChangesAsync(ct);
+
+        return ServiceResult<PageDetailResponse>.Ok(await ToDetailAsync(page, ct));
+    }
+
+    public async Task<IReadOnlyList<FavoriteResponse>?> GetFavoritesAsync(Guid workspaceId, CancellationToken ct)
+    {
+        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        {
+            return null;
+        }
+
+        return await db.Pages
+            .Where(p => p.WorkspaceId == workspaceId && p.IsFavorite)
+            .OrderBy(p => p.Title)
+            .Select(p => new FavoriteResponse(p.Id, p.Title, p.Icon))
+            .ToListAsync(ct);
+    }
+
+    /// <summary>Resolves a page by its public slug (only if still public).</summary>
+    public async Task<PageDetailResponse?> GetPublicBySlugAsync(string slug, CancellationToken ct)
+    {
+        var page = await db.Pages
+            .FirstOrDefaultAsync(p => p.PublicSlug == slug && p.Visibility == PageVisibility.Public, ct);
+        return page is null ? null : await ToDetailAsync(page, ct);
     }
 
     // ---- helpers ----
@@ -232,30 +364,44 @@ public class PageService(FolioDbContext db)
         return result;
     }
 
-    private static Dictionary<Guid, int> DepthByPage(List<Page> pages)
+    /// <summary>Descendants of <paramref name="rootId"/> that are currently soft-deleted.</summary>
+    private async Task<HashSet<Guid>> DeletedDescendantIdsAsync(Guid workspaceId, Guid rootId, CancellationToken ct)
     {
-        var byId = pages.ToDictionary(p => p.Id);
-        var depth = new Dictionary<Guid, int>();
+        var nodes = await db.Pages
+            .IgnoreQueryFilters()
+            .Where(p => p.WorkspaceId == workspaceId)
+            .Select(p => new { p.Id, p.ParentId, p.IsDeleted })
+            .ToListAsync(ct);
 
-        int DepthOf(Page p)
+        var childrenByParent = nodes
+            .Where(n => n.ParentId is not null)
+            .GroupBy(n => n.ParentId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var result = new HashSet<Guid>();
+        var stack = new Stack<Guid>();
+        stack.Push(rootId);
+        while (stack.Count > 0)
         {
-            if (depth.TryGetValue(p.Id, out var d))
+            var current = stack.Pop();
+            if (!childrenByParent.TryGetValue(current, out var kids))
             {
-                return d;
+                continue;
             }
 
-            d = p.ParentId is Guid pid && byId.TryGetValue(pid, out var parent) ? DepthOf(parent) + 1 : 0;
-            depth[p.Id] = d;
-            return d;
+            foreach (var kid in kids.Where(k => k.IsDeleted))
+            {
+                if (result.Add(kid.Id))
+                {
+                    stack.Push(kid.Id);
+                }
+            }
         }
 
-        foreach (var page in pages)
-        {
-            DepthOf(page);
-        }
-
-        return depth;
+        return result;
     }
+
+    private static string NewSlug() => Guid.NewGuid().ToString("N")[..12];
 
     private static void Reindex(List<Page> ordered)
     {
@@ -280,6 +426,10 @@ public class PageService(FolioDbContext db)
             page.Title,
             page.Icon,
             page.Position,
+            page.Visibility,
+            page.Permission,
+            page.PublicSlug,
+            page.IsFavorite,
             page.CreatedAt,
             page.UpdatedAt,
             breadcrumb);

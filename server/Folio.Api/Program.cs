@@ -19,6 +19,7 @@ builder.Services.AddFolioInfrastructure(connectionString);
 
 builder.Services.AddScoped<Folio.Api.Services.PageService>();
 builder.Services.AddScoped<Folio.Api.Services.BlockService>();
+builder.Services.AddScoped<Folio.Api.Services.SearchService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(ClientCorsPolicy, policy =>

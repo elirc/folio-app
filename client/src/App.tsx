@@ -11,6 +11,7 @@ export function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/w/:workspaceId" element={<WorkspacePage />} />
         <Route path="/w/:workspaceId/p/:pageId" element={<WorkspacePage />} />
+        <Route path="/w/:workspaceId/trash" element={<WorkspacePage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

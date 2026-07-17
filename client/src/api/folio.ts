@@ -3,9 +3,15 @@ import type {
   Block,
   CreateBlockInput,
   CreatePageInput,
+  Favorite,
   MovePageInput,
   PageDetail,
   PageTreeNode,
+  PageVisibility,
+  SearchResult,
+  SharePermission,
+  ShareSettings,
+  TrashItem,
   UpdateBlockInput,
   UpdatePageInput,
   WorkspaceSummary,
@@ -49,3 +55,27 @@ export const moveBlock = (blockId: string, position: number) =>
   api.post<Block>(`/api/blocks/${blockId}/move`, { position });
 
 export const deleteBlock = (blockId: string) => api.delete<void>(`/api/blocks/${blockId}`);
+
+// ---- sharing, search, favorites, trash ----
+
+export const searchPages = (workspaceId: string, query: string, signal?: AbortSignal) =>
+  api.get<SearchResult[]>(
+    `/api/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`,
+    signal,
+  );
+
+export const setShare = (pageId: string, visibility: PageVisibility, permission: SharePermission) =>
+  api.put<ShareSettings>(`/api/pages/${pageId}/share`, { visibility, permission });
+
+export const favoritePage = (pageId: string) => api.post<PageDetail>(`/api/pages/${pageId}/favorite`);
+
+export const unfavoritePage = (pageId: string) =>
+  api.delete<PageDetail>(`/api/pages/${pageId}/favorite`);
+
+export const getFavorites = (workspaceId: string, signal?: AbortSignal) =>
+  api.get<Favorite[]>(`/api/workspaces/${workspaceId}/favorites`, signal);
+
+export const getTrash = (workspaceId: string, signal?: AbortSignal) =>
+  api.get<TrashItem[]>(`/api/workspaces/${workspaceId}/trash`, signal);
+
+export const restorePage = (pageId: string) => api.post<PageDetail>(`/api/pages/${pageId}/restore`);

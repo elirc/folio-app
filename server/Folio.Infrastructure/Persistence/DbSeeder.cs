@@ -48,6 +48,12 @@ public static class DbSeeder
         var engineering = Page(EngineeringId, null, "Engineering", "🛠️", 1);
         var product = Page(ProductId, null, "Product", "🚀", 2);
 
+        // Showcase sharing + favorites in the seed.
+        gettingStarted.IsFavorite = true;
+        product.Visibility = Domain.Enums.PageVisibility.Public;
+        product.Permission = Domain.Enums.SharePermission.View;
+        product.PublicSlug = "acme-product-roadmap";
+
         // Children.
         var installation = Page(InstallationId, GettingStartedId, "Installation", "📦", 0);
         var configuration = Page(ConfigurationId, GettingStartedId, "Configuration", "⚙️", 1);
