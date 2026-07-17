@@ -1,10 +1,12 @@
 using Folio.Api.Contracts;
 using Folio.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Folio.Api.Controllers;
 
 [ApiController]
+[Authorize]
 public class SearchController(SearchService search) : ControllerBase
 {
     /// <summary>Full-text search over page titles and block text in a workspace.</summary>

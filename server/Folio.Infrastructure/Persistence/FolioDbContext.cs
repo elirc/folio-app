@@ -40,7 +40,11 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
             e.Property(m => m.Role)
                 .HasConversion<string>()
                 .HasMaxLength(20);
+            e.Property(m => m.PasswordHash).IsRequired();
             e.HasIndex(m => new { m.WorkspaceId, m.Email }).IsUnique();
+            // Email is the login identifier; unique across all workspaces so a
+            // login request resolves to exactly one member.
+            e.HasIndex(m => m.Email).IsUnique();
         });
 
         modelBuilder.Entity<Page>(e =>

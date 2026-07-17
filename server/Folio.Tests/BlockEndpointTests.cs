@@ -12,7 +12,7 @@ public class BlockEndpointTests : IDisposable
     private readonly FolioApiFactory _factory = new();
     private readonly HttpClient _client;
 
-    public BlockEndpointTests() => _client = _factory.CreateClient();
+    public BlockEndpointTests() => _client = _factory.CreateAuthenticatedClient();
 
     public void Dispose()
     {

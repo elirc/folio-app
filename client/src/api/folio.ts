@@ -4,6 +4,9 @@ import type {
   CreateBlockInput,
   CreatePageInput,
   Favorite,
+  LoginInput,
+  LoginResponse,
+  Member,
   MovePageInput,
   PageDetail,
   PageTreeNode,
@@ -16,6 +19,12 @@ import type {
   UpdatePageInput,
   WorkspaceSummary,
 } from "./types";
+
+// ---- auth ----
+
+export const login = (input: LoginInput) => api.post<LoginResponse>("/api/auth/login", input);
+
+export const getMe = (signal?: AbortSignal) => api.get<Member>("/api/auth/me", signal);
 
 export const listWorkspaces = (signal?: AbortSignal) =>
   api.get<WorkspaceSummary[]>("/api/workspaces", signal);

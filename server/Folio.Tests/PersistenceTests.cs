@@ -24,9 +24,10 @@ public class PersistenceTests : IClassFixture<FolioApiFactory>
             Blocks = await db.Blocks.CountAsync(),
         });
 
-        Assert.Equal(1, counts.Workspaces);
-        Assert.Equal(3, counts.Members);
-        Assert.Equal(7, counts.Pages);
+        // Two workspaces: "Acme Docs" (3 members, 7 pages) + isolated "Globex" (1 member, 1 page).
+        Assert.Equal(2, counts.Workspaces);
+        Assert.Equal(4, counts.Members);
+        Assert.Equal(8, counts.Pages);
         Assert.True(counts.Blocks > 0);
     }
 
@@ -60,9 +61,10 @@ public class PersistenceTests : IClassFixture<FolioApiFactory>
     }
 
     [Fact]
-    public async Task Workspaces_endpoint_returns_seeded_workspace_with_counts()
+    public async Task Workspaces_endpoint_returns_callers_workspace_with_counts()
     {
-        var client = _factory.CreateClient();
+        // Authenticated as the Acme owner — the endpoint returns only their workspace.
+        var client = _factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync("/api/workspaces");
 

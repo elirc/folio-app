@@ -1,3 +1,24 @@
+export type MemberRole = "Owner" | "Editor" | "Viewer";
+
+export interface Member {
+  id: string;
+  workspaceId: string;
+  name: string;
+  email: string;
+  role: MemberRole;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  expiresAt: string;
+  member: Member;
+}
+
 export interface WorkspaceSummary {
   id: string;
   name: string;

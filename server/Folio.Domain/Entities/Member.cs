@@ -14,6 +14,9 @@ public class Member
     public string Email { get; set; } = string.Empty;
     public MemberRole Role { get; set; }
 
+    /// <summary>PBKDF2 password hash (salt embedded) used for JWT login.</summary>
+    public string PasswordHash { get; set; } = string.Empty;
+
     /// <summary>UTC.</summary>
     public DateTime CreatedAt { get; set; }
 }
