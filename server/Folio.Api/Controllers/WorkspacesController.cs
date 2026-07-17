@@ -61,4 +61,15 @@ public class WorkspacesController(FolioDbContext db, PageService pages) : Contro
         var favorites = await pages.GetFavoritesAsync(workspaceId, ct);
         return favorites is null ? Problem(statusCode: 404, detail: "Workspace not found.") : Ok(favorites);
     }
+
+    /// <summary>Paginated list of a workspace's pages, most-recently-updated first.</summary>
+    [HttpGet("{workspaceId:guid}/pages")]
+    public async Task<ActionResult<PagedResponse<PageListItemResponse>>> RecentPages(
+        Guid workspaceId,
+        [FromQuery] PaginationQuery pagination,
+        CancellationToken ct)
+    {
+        var result = await pages.GetRecentAsync(workspaceId, pagination.Page, pagination.PageSize, ct);
+        return result is null ? Problem(statusCode: 404, detail: "Workspace not found.") : Ok(result);
+    }
 }

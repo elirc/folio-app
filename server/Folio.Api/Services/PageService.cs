@@ -308,6 +308,71 @@ public class PageService(FolioDbContext db)
             .ToListAsync(ct);
     }
 
+    /// <summary>A paginated, most-recently-updated-first list of a workspace's pages.</summary>
+    public async Task<PagedResponse<PageListItemResponse>?> GetRecentAsync(
+        Guid workspaceId,
+        int page,
+        int pageSize,
+        CancellationToken ct)
+    {
+        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        {
+            return null;
+        }
+
+        var baseQuery = db.Pages.Where(p => p.WorkspaceId == workspaceId);
+        var total = await baseQuery.CountAsync(ct);
+
+        var rows = await baseQuery
+            .OrderByDescending(p => p.UpdatedAt)
+            .ThenBy(p => p.Title)
+            // Include must come before Skip/Take — placing it after paginates
+            // the joined rows instead of the pages.
+            .Include(p => p.Blocks)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var items = rows
+            .Select(p => new PageListItemResponse(
+                p.Id,
+                p.Title,
+                p.Icon,
+                p.Blocks.Count,
+                Preview(p.Blocks),
+                p.UpdatedAt))
+            .ToList();
+
+        var totalPages = pageSize == 0 ? 0 : (int)Math.Ceiling(total / (double)pageSize);
+        return new PagedResponse<PageListItemResponse>(items, page, pageSize, total, totalPages);
+    }
+
+    private static string? Preview(ICollection<Block> blocks)
+    {
+        var first = blocks.OrderBy(b => b.Position).FirstOrDefault();
+        if (first is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var element = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(first.Content);
+            if (element.ValueKind == System.Text.Json.JsonValueKind.Object
+                && element.TryGetProperty("text", out var text))
+            {
+                var value = text.GetString();
+                return value is { Length: > 120 } ? value[..120].TrimEnd() + "…" : value;
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // fall through
+        }
+
+        return null;
+    }
+
     /// <summary>Resolves a page by its public slug (only if still public).</summary>
     public async Task<PageDetailResponse?> GetPublicBySlugAsync(string slug, CancellationToken ct)
     {
