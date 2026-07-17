@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { PageDetail } from "../api/types";
 import { getPage, renamePage } from "../api/folio";
 import { useAsync } from "../hooks/useAsync";
+import { BlockList } from "./BlockList";
 
 interface PageViewProps {
   pageId: string;
@@ -72,7 +73,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
       />
 
       <div className="page-body">
-        <p className="muted">This page has no blocks yet.</p>
+        <BlockList pageId={data.id} />
       </div>
     </article>
   );

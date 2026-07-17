@@ -50,3 +50,34 @@ export interface MovePageInput {
   parentId: string | null;
   position: number;
 }
+
+export type BlockType = "Paragraph" | "Heading" | "Todo" | "Bulleted" | "Quote" | "Code";
+
+/** Permissive view of a block's type-specific JSON payload. */
+export interface BlockContent {
+  text?: string;
+  level?: number;
+  checked?: boolean;
+  language?: string;
+}
+
+export interface Block {
+  id: string;
+  pageId: string;
+  type: BlockType;
+  position: number;
+  content: BlockContent;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBlockInput {
+  type: BlockType;
+  content: BlockContent;
+  position?: number;
+}
+
+export interface UpdateBlockInput {
+  type?: BlockType;
+  content: BlockContent;
+}
