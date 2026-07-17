@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PageDetail } from "../api/types";
-import { getPage, renamePage } from "../api/folio";
+import { favoritePage, getPage, renamePage, unfavoritePage } from "../api/folio";
 import { useAsync } from "../hooks/useAsync";
 import { BlockList } from "./BlockList";
+import { ShareDialog } from "./ShareDialog";
 
 interface PageViewProps {
   pageId: string;
@@ -18,10 +19,12 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
   );
 
   const [title, setTitle] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
   useEffect(() => {
     if (data) {
       setTitle(data.title);
     }
+    setShareOpen(false);
   }, [data]);
 
   async function saveTitle() {
@@ -37,6 +40,19 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
     onChanged();
   }
 
+  async function toggleFavorite() {
+    if (!data) {
+      return;
+    }
+    if (data.isFavorite) {
+      await unfavoritePage(pageId);
+    } else {
+      await favoritePage(pageId);
+    }
+    reload();
+    onChanged();
+  }
+
   if (loading) {
     return <p className="muted">Loading page…</p>;
   }
@@ -46,18 +62,38 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
 
   return (
     <article className="page-view">
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        {data.breadcrumb.map((crumb, index) => (
-          <span key={crumb.id}>
-            {index > 0 && <span className="breadcrumb-sep"> / </span>}
-            {crumb.id === data.id ? (
-              <span className="breadcrumb-current">{crumb.title}</span>
-            ) : (
-              <Link to={`/w/${workspaceId}/p/${crumb.id}`}>{crumb.title}</Link>
-            )}
-          </span>
-        ))}
-      </nav>
+      <div className="page-toolbar">
+        <nav className="breadcrumb" aria-label="Breadcrumb">
+          {data.breadcrumb.map((crumb, index) => (
+            <span key={crumb.id}>
+              {index > 0 && <span className="breadcrumb-sep"> / </span>}
+              {crumb.id === data.id ? (
+                <span className="breadcrumb-current">{crumb.title}</span>
+              ) : (
+                <Link to={`/w/${workspaceId}/p/${crumb.id}`}>{crumb.title}</Link>
+              )}
+            </span>
+          ))}
+        </nav>
+        <div className="page-toolbar-actions">
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={data.isFavorite ? "Remove from favorites" : "Add to favorites"}
+            aria-pressed={data.isFavorite}
+            onClick={toggleFavorite}
+          >
+            {data.isFavorite ? "★" : "☆"}
+          </button>
+          <button type="button" className="share-btn" onClick={() => setShareOpen((v) => !v)}>
+            Share
+          </button>
+        </div>
+      </div>
+
+      {shareOpen && (
+        <ShareDialog page={data} onChanged={reload} onClose={() => setShareOpen(false)} />
+      )}
 
       <input
         className="page-title-input"

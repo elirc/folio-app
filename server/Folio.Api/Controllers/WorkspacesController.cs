@@ -1,4 +1,5 @@
 using Folio.Api.Contracts;
+using Folio.Api.Services;
 using Folio.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +8,7 @@ namespace Folio.Api.Controllers;
 
 [ApiController]
 [Route("api/workspaces")]
-public class WorkspacesController(FolioDbContext db) : ControllerBase
+public class WorkspacesController(FolioDbContext db, PageService pages) : ControllerBase
 {
     /// <summary>Lists workspaces with member and page counts.</summary>
     [HttpGet]
@@ -43,5 +44,21 @@ public class WorkspacesController(FolioDbContext db) : ControllerBase
             .FirstOrDefaultAsync(ct);
 
         return workspace is null ? NotFound() : Ok(workspace);
+    }
+
+    /// <summary>Pages currently in the workspace's trash (roots of trashed subtrees).</summary>
+    [HttpGet("{workspaceId:guid}/trash")]
+    public async Task<ActionResult<IReadOnlyList<TrashItemResponse>>> Trash(Guid workspaceId, CancellationToken ct)
+    {
+        var trash = await pages.GetTrashAsync(workspaceId, ct);
+        return trash is null ? Problem(statusCode: 404, detail: "Workspace not found.") : Ok(trash);
+    }
+
+    /// <summary>Favorite pages in the workspace.</summary>
+    [HttpGet("{workspaceId:guid}/favorites")]
+    public async Task<ActionResult<IReadOnlyList<FavoriteResponse>>> Favorites(Guid workspaceId, CancellationToken ct)
+    {
+        var favorites = await pages.GetFavoritesAsync(workspaceId, ct);
+        return favorites is null ? Problem(statusCode: 404, detail: "Workspace not found.") : Ok(favorites);
     }
 }

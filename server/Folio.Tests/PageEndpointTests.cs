@@ -44,7 +44,7 @@ public class PageEndpointTests : IDisposable
             new { title = "Marketing" });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var created = await response.Content.ReadFromJsonAsync<PageDetailResponse>();
+        var created = await response.Content.ReadFromJsonAsync<PageDetailResponse>(TestJson.Options);
         Assert.NotNull(created);
         Assert.Null(created!.ParentId);
         Assert.Equal(3, created.Position); // after the 3 seeded roots
@@ -58,7 +58,7 @@ public class PageEndpointTests : IDisposable
             $"/api/workspaces/{WorkspaceId}/pages",
             new { title = "FAQ", parentId = DbSeeder.GettingStartedId });
 
-        var created = await response.Content.ReadFromJsonAsync<PageDetailResponse>();
+        var created = await response.Content.ReadFromJsonAsync<PageDetailResponse>(TestJson.Options);
         Assert.Equal(DbSeeder.GettingStartedId, created!.ParentId);
         Assert.Equal(2, created.Position); // appended after Installation, Configuration
         Assert.Equal(["Getting Started", "FAQ"], created.Breadcrumb.Select(b => b.Title));
@@ -82,7 +82,7 @@ public class PageEndpointTests : IDisposable
             new { title = "Product & Design", icon = "🎨" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var updated = await response.Content.ReadFromJsonAsync<PageDetailResponse>();
+        var updated = await response.Content.ReadFromJsonAsync<PageDetailResponse>(TestJson.Options);
         Assert.Equal("Product & Design", updated!.Title);
         Assert.Equal("🎨", updated.Icon);
     }

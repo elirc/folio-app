@@ -15,8 +15,9 @@ const tree: PageTreeNode[] = [
     title: "Getting Started",
     icon: "📘",
     position: 0,
+    isFavorite: false,
     children: [
-      { id: "p2", parentId: "p1", title: "Installation", icon: null, position: 0, children: [] },
+      { id: "p2", parentId: "p1", title: "Installation", icon: null, position: 0, isFavorite: false, children: [] },
     ],
   },
 ];

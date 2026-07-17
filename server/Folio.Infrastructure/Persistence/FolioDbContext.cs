@@ -48,16 +48,26 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
             e.HasKey(p => p.Id);
             e.Property(p => p.Title).IsRequired().HasMaxLength(400);
             e.Property(p => p.Icon).HasMaxLength(40);
+            e.Property(p => p.Visibility).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.Permission).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.PublicSlug).HasMaxLength(40);
 
             // Self-referencing tree. Restrict so deleting a parent never silently
-            // cascades away children in the database — the app handles subtree
-            // removal explicitly (soft-delete arrives in a later sprint).
+            // cascades away children in the database — subtree removal is handled
+            // explicitly (and soft-delete keeps rows around anyway).
             e.HasOne(p => p.Parent)
                 .WithMany(p => p.Children)
                 .HasForeignKey(p => p.ParentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             e.HasIndex(p => new { p.WorkspaceId, p.ParentId, p.Position });
+            e.HasIndex(p => p.PublicSlug)
+                .IsUnique()
+                .HasFilter("\"PublicSlug\" IS NOT NULL");
+
+            // Soft-deleted pages are hidden from every query unless it opts out
+            // with IgnoreQueryFilters() (used by the trash/restore paths).
+            e.HasQueryFilter(p => !p.IsDeleted);
         });
 
         modelBuilder.Entity<Block>(e =>

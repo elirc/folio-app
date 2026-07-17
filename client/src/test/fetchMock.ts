@@ -14,9 +14,14 @@ export function installFetchMock(routes: Record<string, MockRoute>) {
   const mock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
     const path = url.replace(/^https?:\/\/[^/]+/, "");
+    const pathNoQuery = path.split("?")[0];
     const method = (init?.method ?? "GET").toUpperCase();
 
-    const route = routes[`${method} ${path}`] ?? routes[path];
+    const route =
+      routes[`${method} ${path}`] ??
+      routes[path] ??
+      routes[`${method} ${pathNoQuery}`] ??
+      routes[pathNoQuery];
     if (!route) {
       return new Response(JSON.stringify({ title: "Not mocked" }), {
         status: 404,
