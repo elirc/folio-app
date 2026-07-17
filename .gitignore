@@ -1,0 +1,30 @@
+# ---------- OS / editor ----------
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vs/
+.vscode/
+
+# ---------- Node / Vite (client) ----------
+node_modules/
+client/dist/
+client/coverage/
+*.local
+.pnpm-store/
+npm-debug.log*
+pnpm-debug.log*
+
+# ---------- .NET (server) ----------
+[Bb]in/
+[Oo]bj/
+*.user
+server/**/appsettings.*.local.json
+
+# ---------- SQLite dev databases ----------
+*.db
+*.db-shm
+*.db-wal
+
+# ---------- Repo-local scratch ----------
+tmp/
