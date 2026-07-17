@@ -12,6 +12,8 @@ builder.Services.AddProblemDetails();
 var connectionString = builder.Configuration.GetConnectionString("Folio")
     ?? "Data Source=folio.db";
 builder.Services.AddFolioInfrastructure(connectionString);
+
+builder.Services.AddScoped<Folio.Api.Services.PageService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(ClientCorsPolicy, policy =>
