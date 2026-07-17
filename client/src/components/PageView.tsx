@@ -4,6 +4,7 @@ import type { PageDetail } from "../api/types";
 import { favoritePage, getPage, renamePage, unfavoritePage } from "../api/folio";
 import { useAsync } from "../hooks/useAsync";
 import { BlockList } from "./BlockList";
+import { HistoryPanel } from "./HistoryPanel";
 import { ShareDialog } from "./ShareDialog";
 
 interface PageViewProps {
@@ -20,12 +21,22 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
 
   const [title, setTitle] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Bumping this remounts BlockList so it refetches after a version restore.
+  const [blocksNonce, setBlocksNonce] = useState(0);
   useEffect(() => {
     if (data) {
       setTitle(data.title);
     }
     setShareOpen(false);
+    setHistoryOpen(false);
   }, [data]);
+
+  function onHistoryChanged() {
+    reload();
+    setBlocksNonce((n) => n + 1);
+    onChanged();
+  }
 
   async function saveTitle() {
     const trimmed = title.trim();
@@ -85,6 +96,9 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
           >
             {data.isFavorite ? "★" : "☆"}
           </button>
+          <button type="button" className="share-btn" onClick={() => setHistoryOpen((v) => !v)}>
+            History
+          </button>
           <button type="button" className="share-btn" onClick={() => setShareOpen((v) => !v)}>
             Share
           </button>
@@ -93,6 +107,14 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
 
       {shareOpen && (
         <ShareDialog page={data} onChanged={reload} onClose={() => setShareOpen(false)} />
+      )}
+
+      {historyOpen && (
+        <HistoryPanel
+          pageId={data.id}
+          onChanged={onHistoryChanged}
+          onClose={() => setHistoryOpen(false)}
+        />
       )}
 
       <input
@@ -109,7 +131,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
       />
 
       <div className="page-body">
-        <BlockList pageId={data.id} />
+        <BlockList key={blocksNonce} pageId={data.id} />
       </div>
     </article>
   );

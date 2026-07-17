@@ -161,3 +161,40 @@ export interface MoveBlockInput {
   position: number;
   parentId?: string | null;
 }
+
+// ---- page history ----
+
+export interface DiffSummary {
+  added: number;
+  removed: number;
+  changed: number;
+}
+
+export interface VersionSummary {
+  versionNumber: number;
+  title: string;
+  icon: string | null;
+  blockCount: number;
+  createdByName: string | null;
+  label: string | null;
+  createdAt: string;
+}
+
+export interface BlockSnapshot {
+  id: string;
+  parentBlockId: string | null;
+  type: BlockType;
+  position: number;
+  content: BlockContent;
+}
+
+export interface VersionDetail {
+  versionNumber: number;
+  title: string;
+  icon: string | null;
+  blocks: BlockSnapshot[];
+  diff: DiffSummary;
+  createdByName: string | null;
+  label: string | null;
+  createdAt: string;
+}

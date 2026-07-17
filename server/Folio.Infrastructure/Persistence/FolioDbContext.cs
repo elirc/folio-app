@@ -9,6 +9,7 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
     public DbSet<Member> Members => Set<Member>();
     public DbSet<Page> Pages => Set<Page>();
     public DbSet<Block> Blocks => Set<Block>();
+    public DbSet<PageVersion> PageVersions => Set<PageVersion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -96,6 +97,23 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
                 .OnDelete(DeleteBehavior.Restrict);
 
             e.HasIndex(b => new { b.PageId, b.ParentBlockId, b.Position });
+        });
+
+        modelBuilder.Entity<PageVersion>(e =>
+        {
+            e.HasKey(v => v.Id);
+            e.Property(v => v.Title).IsRequired().HasMaxLength(400);
+            e.Property(v => v.Icon).HasMaxLength(40);
+            e.Property(v => v.BlocksJson).IsRequired();
+            e.Property(v => v.CreatedByName).HasMaxLength(200);
+            e.Property(v => v.Label).HasMaxLength(120);
+
+            e.HasOne(v => v.Page)
+                .WithMany()
+                .HasForeignKey(v => v.PageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(v => new { v.PageId, v.VersionNumber }).IsUnique();
         });
     }
 }

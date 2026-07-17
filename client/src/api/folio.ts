@@ -18,6 +18,8 @@ import type {
   TrashItem,
   UpdateBlockInput,
   UpdatePageInput,
+  VersionDetail,
+  VersionSummary,
   WorkspaceSummary,
 } from "./types";
 
@@ -89,3 +91,17 @@ export const getTrash = (workspaceId: string, signal?: AbortSignal) =>
   api.get<TrashItem[]>(`/api/workspaces/${workspaceId}/trash`, signal);
 
 export const restorePage = (pageId: string) => api.post<PageDetail>(`/api/pages/${pageId}/restore`);
+
+// ---- page history ----
+
+export const getVersions = (pageId: string, signal?: AbortSignal) =>
+  api.get<VersionSummary[]>(`/api/pages/${pageId}/versions`, signal);
+
+export const getVersion = (pageId: string, versionNumber: number, signal?: AbortSignal) =>
+  api.get<VersionDetail>(`/api/pages/${pageId}/versions/${versionNumber}`, signal);
+
+export const saveVersion = (pageId: string) =>
+  api.post<VersionSummary>(`/api/pages/${pageId}/versions`);
+
+export const restoreVersion = (pageId: string, versionNumber: number) =>
+  api.post<VersionSummary>(`/api/pages/${pageId}/versions/${versionNumber}/restore`);

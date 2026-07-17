@@ -33,6 +33,7 @@ builder.Services.AddFolioInfrastructure(connectionString);
 builder.Services.AddScoped<Folio.Api.Services.PageService>();
 builder.Services.AddScoped<Folio.Api.Services.BlockService>();
 builder.Services.AddScoped<Folio.Api.Services.SearchService>();
+builder.Services.AddScoped<Folio.Api.Services.PageVersionService>();
 
 // ---- authentication / authorization ----
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
