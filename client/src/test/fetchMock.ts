@@ -25,7 +25,8 @@ export function installFetchMock(routes: Record<string, MockRoute>) {
     }
 
     const status = route.status ?? 200;
-    const body = route.json === undefined ? "" : JSON.stringify(route.json);
+    // 204/205/304 must have a null body per the Fetch spec, so default to null.
+    const body = route.json === undefined ? null : JSON.stringify(route.json);
     return new Response(body, {
       status,
       headers: { "Content-Type": "application/json" },
