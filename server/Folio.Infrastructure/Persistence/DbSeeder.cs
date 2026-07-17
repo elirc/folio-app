@@ -113,6 +113,18 @@ public static class DbSeeder
             Block(ArchitectureId, BlockType.Heading, 0, new { text = "Architecture", level = 2 }),
             Block(ArchitectureId, BlockType.Paragraph, 1, new { text = "ASP.NET Core Web API + EF Core/SQLite backend, Vite + React frontend." }));
 
+        // Configuration page showcases the v2 block types, including a Toggle with
+        // nested children.
+        var configToggleId = Guid.Parse("cccccccc-0000-0000-0000-000000000001");
+        db.Blocks.AddRange(
+            Block(ConfigurationId, BlockType.Callout, 0, new { text = "Configuration lives in appsettings.json.", emoji = "⚙️" }),
+            Block(configToggleId, ConfigurationId, null, BlockType.Toggle, 1, new { text = "Advanced options", collapsed = false }),
+            Block(Guid.NewGuid(), ConfigurationId, configToggleId, BlockType.Bulleted, 0, new { text = "Environment variables override file settings" }),
+            Block(Guid.NewGuid(), ConfigurationId, configToggleId, BlockType.Bulleted, 1, new { text = "Secrets belong in user-secrets, never in git" }),
+            Block(ConfigurationId, BlockType.Divider, 2, new { }),
+            Block(ConfigurationId, BlockType.Image, 3, new { url = "https://example.com/config-diagram.png", alt = "Configuration diagram" }),
+            Block(ConfigurationId, BlockType.Table, 4, new { rows = new[] { new[] { "Key", "Value" }, new[] { "LogLevel", "Information" } } }));
+
         db.SaveChanges();
     }
 
@@ -138,10 +150,14 @@ public static class DbSeeder
         UpdatedAt = Seeded,
     };
 
-    private static Block Block(Guid pageId, BlockType type, int position, object content) => new()
+    private static Block Block(Guid pageId, BlockType type, int position, object content) =>
+        Block(Guid.NewGuid(), pageId, null, type, position, content);
+
+    private static Block Block(Guid id, Guid pageId, Guid? parentBlockId, BlockType type, int position, object content) => new()
     {
-        Id = Guid.NewGuid(),
+        Id = id,
         PageId = pageId,
+        ParentBlockId = parentBlockId,
         Type = type,
         Position = position,
         Content = JsonSerializer.Serialize(content),

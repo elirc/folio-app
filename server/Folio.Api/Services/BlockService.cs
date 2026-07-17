@@ -31,10 +31,11 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
 
         var blocks = await db.Blocks
             .Where(b => b.PageId == pageId)
-            .OrderBy(b => b.Position)
             .ToListAsync(ct);
 
-        return ServiceResult<IReadOnlyList<BlockResponse>>.Ok(blocks.Select(ToResponse).ToList());
+        // Pre-order DFS: each parent immediately precedes its children, siblings
+        // in Position order — a flat list the client re-nests via ParentBlockId.
+        return ServiceResult<IReadOnlyList<BlockResponse>>.Ok(OrderTree(blocks).Select(ToResponse).ToList());
     }
 
     public async Task<ServiceResult<BlockResponse>> CreateAsync(Guid pageId, CreateBlockRequest request, CancellationToken ct)
@@ -55,13 +56,19 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
             return ServiceResult<BlockResponse>.Invalid("Block content must be a JSON object.");
         }
 
-        var siblings = await OrderedBlocksAsync(pageId, excluding: null, ct);
+        if (await ValidateParentAsync(pageId, request.ParentId, ct) is { } parentError)
+        {
+            return ServiceResult<BlockResponse>.Invalid(parentError);
+        }
+
+        var siblings = await OrderedBlocksAsync(pageId, request.ParentId, excluding: null, ct);
         var insertAt = Clamp(request.Position ?? siblings.Count, 0, siblings.Count);
 
         var block = new Block
         {
             Id = Guid.NewGuid(),
             PageId = pageId,
+            ParentBlockId = request.ParentId,
             Type = request.Type!.Value,
             Position = insertAt,
             Content = content.GetRawText(),
@@ -122,10 +129,39 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
             return denied;
         }
 
-        var siblings = await OrderedBlocksAsync(block.PageId, excluding: blockId, ct);
-        var insertAt = Clamp(request.Position, 0, siblings.Count);
-        siblings.Insert(insertAt, block);
-        Reindex(siblings);
+        var targetParentId = request.ParentId;
+        if (targetParentId is Guid tp)
+        {
+            if (tp == blockId)
+            {
+                return ServiceResult<BlockResponse>.Invalid("A block cannot be its own parent.");
+            }
+
+            if (await ValidateParentAsync(block.PageId, tp, ct) is { } parentError)
+            {
+                return ServiceResult<BlockResponse>.Invalid(parentError);
+            }
+
+            var descendants = await DescendantBlockIdsAsync(block.PageId, blockId, ct);
+            if (descendants.Contains(tp))
+            {
+                return ServiceResult<BlockResponse>.Invalid("Cannot move a block into its own descendant.");
+            }
+        }
+
+        var oldParentId = block.ParentBlockId;
+        block.ParentBlockId = targetParentId;
+
+        var targetSiblings = await OrderedBlocksAsync(block.PageId, targetParentId, excluding: blockId, ct);
+        var insertAt = Clamp(request.Position, 0, targetSiblings.Count);
+        targetSiblings.Insert(insertAt, block);
+        Reindex(targetSiblings);
+
+        if (oldParentId != targetParentId)
+        {
+            var oldSiblings = await OrderedBlocksAsync(block.PageId, oldParentId, excluding: blockId, ct);
+            Reindex(oldSiblings);
+        }
 
         block.UpdatedAt = Now;
         await TouchPageAsync(block.PageId, ct);
@@ -148,10 +184,16 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
         }
 
         var pageId = block.PageId;
-        db.Blocks.Remove(block);
+        var parentId = block.ParentBlockId;
+
+        // Deleting a block removes its whole subtree (children under a Toggle).
+        var subtree = await DescendantBlockIdsAsync(pageId, blockId, ct);
+        subtree.Add(blockId);
+        var toRemove = await db.Blocks.Where(b => subtree.Contains(b.Id)).ToListAsync(ct);
+        db.Blocks.RemoveRange(toRemove);
         await db.SaveChangesAsync(ct);
 
-        var remaining = await OrderedBlocksAsync(pageId, excluding: null, ct);
+        var remaining = await OrderedBlocksAsync(pageId, parentId, excluding: null, ct);
         Reindex(remaining);
         await TouchPageAsync(pageId, ct);
         await db.SaveChangesAsync(ct);
@@ -192,15 +234,94 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
 
     // ---- helpers ----
 
-    private async Task<List<Block>> OrderedBlocksAsync(Guid pageId, Guid? excluding, CancellationToken ct)
+    /// <summary>The ordered sibling blocks sharing a parent (null = page root).</summary>
+    private async Task<List<Block>> OrderedBlocksAsync(Guid pageId, Guid? parentId, Guid? excluding, CancellationToken ct)
     {
-        var query = db.Blocks.Where(b => b.PageId == pageId);
+        var query = db.Blocks.Where(b => b.PageId == pageId && b.ParentBlockId == parentId);
         if (excluding is Guid id)
         {
             query = query.Where(b => b.Id != id);
         }
 
         return await query.OrderBy(b => b.Position).ToListAsync(ct);
+    }
+
+    /// <summary>Null when a parent id is valid (a Toggle on the same page); otherwise an error message.</summary>
+    private async Task<string?> ValidateParentAsync(Guid pageId, Guid? parentId, CancellationToken ct)
+    {
+        if (parentId is not Guid id)
+        {
+            return null;
+        }
+
+        var parent = await db.Blocks
+            .Where(b => b.Id == id && b.PageId == pageId)
+            .Select(b => new { b.Type })
+            .FirstOrDefaultAsync(ct);
+
+        if (parent is null)
+        {
+            return "Parent block not found on this page.";
+        }
+
+        return parent.Type == BlockType.Toggle
+            ? null
+            : "Only Toggle blocks can contain child blocks.";
+    }
+
+    /// <summary>Ids of every block beneath <paramref name="rootId"/> within the page.</summary>
+    private async Task<HashSet<Guid>> DescendantBlockIdsAsync(Guid pageId, Guid rootId, CancellationToken ct)
+    {
+        var edges = await db.Blocks
+            .Where(b => b.PageId == pageId)
+            .Select(b => new { b.Id, b.ParentBlockId })
+            .ToListAsync(ct);
+
+        var childrenByParent = edges
+            .Where(e => e.ParentBlockId is not null)
+            .GroupBy(e => e.ParentBlockId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(e => e.Id).ToList());
+
+        var result = new HashSet<Guid>();
+        var stack = new Stack<Guid>();
+        stack.Push(rootId);
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!childrenByParent.TryGetValue(current, out var kids))
+            {
+                continue;
+            }
+
+            foreach (var kid in kids)
+            {
+                if (result.Add(kid))
+                {
+                    stack.Push(kid);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Flattens the block set into pre-order DFS: parent, then its ordered children.</summary>
+    private static List<Block> OrderTree(List<Block> blocks)
+    {
+        var byParent = blocks.OrderBy(b => b.Position).ToLookup(b => b.ParentBlockId);
+        var result = new List<Block>(blocks.Count);
+
+        void Visit(Guid? parentId)
+        {
+            foreach (var block in byParent[parentId])
+            {
+                result.Add(block);
+                Visit(block.Id);
+            }
+        }
+
+        Visit(null);
+        return result;
     }
 
     private async Task TouchPageAsync(Guid pageId, CancellationToken ct)
@@ -228,6 +349,7 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
     private static BlockResponse ToResponse(Block block) => new(
         block.Id,
         block.PageId,
+        block.ParentBlockId,
         block.Type,
         block.Position,
         JsonSerializer.Deserialize<JsonElement>(block.Content),
