@@ -655,3 +655,87 @@ a:hover {
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
 }
+
+/* ---- History panel ---- */
+.history-panel {
+  margin: 0.75rem 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+.history-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+.history-version {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.3rem 0.35rem;
+  border-radius: 6px;
+  color: var(--fg);
+}
+.history-version:hover {
+  background: var(--accent-soft);
+}
+.history-num {
+  font-weight: 700;
+  color: var(--accent);
+}
+.history-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-meta {
+  font-size: 0.8rem;
+}
+.history-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.history-diff {
+  margin: 0.1rem 0 0.4rem 0.4rem;
+  font-size: 0.85rem;
+}
+.diff-added {
+  color: var(--ok);
+  font-weight: 600;
+}
+.diff-removed {
+  color: var(--danger);
+  font-weight: 600;
+}
+.diff-changed {
+  color: var(--accent);
+  font-weight: 600;
+}
