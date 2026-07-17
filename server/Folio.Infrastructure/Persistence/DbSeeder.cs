@@ -1,14 +1,18 @@
 using System.Text.Json;
 using Folio.Domain.Entities;
 using Folio.Domain.Enums;
+using Folio.Domain.Security;
 
 namespace Folio.Infrastructure.Persistence;
 
-/// <summary>Idempotent development seed: one workspace with members, a page tree, and blocks.</summary>
+/// <summary>Idempotent development seed: two workspaces with members, page trees, and blocks.</summary>
 public static class DbSeeder
 {
     // Stable UTC instant so seeds are deterministic across runs and tests.
     private static readonly DateTime Seeded = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>All seeded members share this password for local login/testing.</summary>
+    public const string DefaultPassword = "password";
 
     public static readonly Guid WorkspaceId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     public static readonly Guid GettingStartedId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
@@ -18,6 +22,16 @@ public static class DbSeeder
     public static readonly Guid ArchitectureId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000005");
     public static readonly Guid RunbooksId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000006");
     public static readonly Guid ProductId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000007");
+
+    // Seeded login emails (workspace "Acme Docs"): Owner / Editor / Viewer.
+    public const string OwnerEmail = "ada@acme.test";
+    public const string EditorEmail = "grace@acme.test";
+    public const string ViewerEmail = "linus@acme.test";
+
+    // A second, isolated workspace used to exercise cross-workspace access rules.
+    public static readonly Guid GlobexWorkspaceId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    public static readonly Guid GlobexHomeId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
+    public const string GlobexOwnerEmail = "eve@globex.test";
 
     public static void Seed(FolioDbContext db)
     {
@@ -35,13 +49,37 @@ public static class DbSeeder
             UpdatedAt = Seeded,
             Members =
             [
-                Member("Ada Lovelace", "ada@acme.test", MemberRole.Owner),
-                Member("Grace Hopper", "grace@acme.test", MemberRole.Editor),
-                Member("Linus Torvalds", "linus@acme.test", MemberRole.Viewer),
+                Member("Ada Lovelace", OwnerEmail, MemberRole.Owner),
+                Member("Grace Hopper", EditorEmail, MemberRole.Editor),
+                Member("Linus Torvalds", ViewerEmail, MemberRole.Viewer),
             ],
         };
 
         db.Workspaces.Add(workspace);
+
+        // A second workspace with its own owner — never visible to Acme members.
+        var globex = new Workspace
+        {
+            Id = GlobexWorkspaceId,
+            Name = "Globex",
+            Slug = "globex",
+            CreatedAt = Seeded,
+            UpdatedAt = Seeded,
+            Members = [Member("Eve Polastri", GlobexOwnerEmail, MemberRole.Owner)],
+        };
+        db.Workspaces.Add(globex);
+        var globexHome = new Page
+        {
+            Id = GlobexHomeId,
+            WorkspaceId = GlobexWorkspaceId,
+            ParentId = null,
+            Title = "Globex Home",
+            Icon = "🏢",
+            Position = 0,
+            CreatedAt = Seeded,
+            UpdatedAt = Seeded,
+        };
+        db.Pages.Add(globexHome);
 
         // Root pages.
         var gettingStarted = Page(GettingStartedId, null, "Getting Started", "📘", 0);
@@ -84,6 +122,7 @@ public static class DbSeeder
         Name = name,
         Email = email,
         Role = role,
+        PasswordHash = PasswordHasher.Hash(DefaultPassword),
         CreatedAt = Seeded,
     };
 

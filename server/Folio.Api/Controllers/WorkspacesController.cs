@@ -1,20 +1,30 @@
+using Folio.Api.Auth;
 using Folio.Api.Contracts;
 using Folio.Api.Services;
 using Folio.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Folio.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/workspaces")]
-public class WorkspacesController(FolioDbContext db, PageService pages) : ControllerBase
+public class WorkspacesController(FolioDbContext db, PageService pages, ICurrentMemberAccessor current) : ControllerBase
 {
-    /// <summary>Lists workspaces with member and page counts.</summary>
+    /// <summary>Lists the workspaces the caller belongs to (with member and page counts).</summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<WorkspaceSummaryResponse>>> List(CancellationToken ct)
     {
+        var member = current.Member;
+        if (member is null)
+        {
+            return Ok(Array.Empty<WorkspaceSummaryResponse>());
+        }
+
         var workspaces = await db.Workspaces
+            .Where(w => w.Id == member.WorkspaceId)
             .OrderBy(w => w.Name)
             .Select(w => new WorkspaceSummaryResponse(
                 w.Id,
@@ -28,10 +38,16 @@ public class WorkspacesController(FolioDbContext db, PageService pages) : Contro
         return Ok(workspaces);
     }
 
-    /// <summary>Gets a single workspace summary.</summary>
+    /// <summary>Gets a single workspace summary (only the caller's own workspace).</summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<WorkspaceSummaryResponse>> Get(Guid id, CancellationToken ct)
     {
+        // Foreign workspaces are 404 so their existence isn't leaked.
+        if (current.Member?.WorkspaceId != id)
+        {
+            return NotFound();
+        }
+
         var workspace = await db.Workspaces
             .Where(w => w.Id == id)
             .Select(w => new WorkspaceSummaryResponse(

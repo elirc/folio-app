@@ -1,10 +1,12 @@
 using Folio.Api.Contracts;
 using Folio.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Folio.Api.Controllers;
 
 [ApiController]
+[AllowAnonymous]
 public class PublicController(PageService pages) : ControllerBase
 {
     /// <summary>Resolve a page shared via public link. 404 unless still Public.</summary>

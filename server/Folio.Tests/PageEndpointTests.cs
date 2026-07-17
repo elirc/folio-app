@@ -15,7 +15,7 @@ public class PageEndpointTests : IDisposable
     private readonly FolioApiFactory _factory = new();
     private readonly HttpClient _client;
 
-    public PageEndpointTests() => _client = _factory.CreateClient();
+    public PageEndpointTests() => _client = _factory.CreateAuthenticatedClient();
 
     public void Dispose()
     {

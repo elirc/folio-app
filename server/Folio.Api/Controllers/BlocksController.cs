@@ -1,10 +1,12 @@
 using Folio.Api.Contracts;
 using Folio.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Folio.Api.Controllers;
 
 [ApiController]
+[Authorize]
 public class BlocksController(BlockService blocks) : ControllerBase
 {
     /// <summary>All blocks on a page, in order.</summary>
@@ -12,7 +14,13 @@ public class BlocksController(BlockService blocks) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<BlockResponse>>> List(Guid pageId, CancellationToken ct)
     {
         var result = await blocks.GetForPageAsync(pageId, ct);
-        return result is null ? Problem(statusCode: 404, detail: "Page not found.") : Ok(result);
+        return result.Status switch
+        {
+            OperationStatus.Success => Ok(result.Value),
+            OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
+            _ => Problem(statusCode: 400, detail: result.Error),
+        };
     }
 
     /// <summary>Create a block (appended unless a position is given).</summary>
@@ -24,6 +32,7 @@ public class BlocksController(BlockService blocks) : ControllerBase
         {
             OperationStatus.Success => Created($"/api/blocks/{result.Value!.Id}", result.Value),
             OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
             _ => Problem(statusCode: 400, detail: result.Error),
         };
     }
@@ -53,6 +62,7 @@ public class BlocksController(BlockService blocks) : ControllerBase
         {
             OperationStatus.Success => NoContent(),
             OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
             _ => Problem(statusCode: 400, detail: result.Error),
         };
     }
@@ -62,6 +72,7 @@ public class BlocksController(BlockService blocks) : ControllerBase
         {
             OperationStatus.Success => Ok(result.Value),
             OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
             _ => Problem(statusCode: 400, detail: result.Error),
         };
 }

@@ -17,7 +17,7 @@ public class HardeningTests : IClassFixture<FolioApiFactory>
     [Fact]
     public async Task Not_found_returns_problem_details_json()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync($"/api/pages/{Guid.NewGuid()}");
 
@@ -34,7 +34,7 @@ public class HardeningTests : IClassFixture<FolioApiFactory>
     [Fact]
     public async Task Validation_error_returns_problem_with_field_errors()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateAuthenticatedClient();
 
         var response = await client.PostAsJsonAsync(
             $"/api/workspaces/{WorkspaceId}/pages",
@@ -51,7 +51,7 @@ public class HardeningTests : IClassFixture<FolioApiFactory>
     [Fact]
     public async Task Recent_pages_returns_paged_metadata()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateAuthenticatedClient();
 
         var result = await client.GetFromJsonAsync<PagedResponse<PageListItemResponse>>(
             $"/api/workspaces/{WorkspaceId}/pages?page=1&pageSize=3");
@@ -67,7 +67,7 @@ public class HardeningTests : IClassFixture<FolioApiFactory>
     [Fact]
     public async Task Recent_pages_includes_block_count_and_preview()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateAuthenticatedClient();
 
         var result = await client.GetFromJsonAsync<PagedResponse<PageListItemResponse>>(
             $"/api/workspaces/{WorkspaceId}/pages?page=1&pageSize=20");
@@ -80,7 +80,7 @@ public class HardeningTests : IClassFixture<FolioApiFactory>
     [Fact]
     public async Task Recent_pages_rejects_invalid_pagination()
     {
-        var client = _factory.CreateClient();
+        var client = _factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync($"/api/workspaces/{WorkspaceId}/pages?page=1&pageSize=0");
 

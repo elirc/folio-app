@@ -1,10 +1,12 @@
 using Folio.Api.Contracts;
 using Folio.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Folio.Api.Controllers;
 
 [ApiController]
+[Authorize]
 public class PagesController(PageService pages) : ControllerBase
 {
     /// <summary>Nested page tree for a workspace's sidebar.</summary>
@@ -24,24 +26,28 @@ public class PagesController(PageService pages) : ControllerBase
         {
             OperationStatus.Success => Created($"/api/pages/{result.Value!.Id}", result.Value),
             OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
             _ => Problem(statusCode: 400, detail: result.Error),
         };
     }
 
     /// <summary>Page detail including breadcrumb.</summary>
     [HttpGet("/api/pages/{id:guid}")]
-    public async Task<ActionResult<PageDetailResponse>> Get(Guid id, CancellationToken ct)
-    {
-        var detail = await pages.GetDetailAsync(id, ct);
-        return detail is null ? Problem(statusCode: 404, detail: "Page not found.") : Ok(detail);
-    }
+    public async Task<ActionResult<PageDetailResponse>> Get(Guid id, CancellationToken ct) =>
+        MapToDetail(await pages.GetDetailAsync(id, ct));
 
     /// <summary>Breadcrumb trail (root to self).</summary>
     [HttpGet("/api/pages/{id:guid}/breadcrumb")]
     public async Task<ActionResult<IReadOnlyList<BreadcrumbItem>>> Breadcrumb(Guid id, CancellationToken ct)
     {
-        var trail = await pages.GetBreadcrumbAsync(id, ct);
-        return trail is null ? Problem(statusCode: 404, detail: "Page not found.") : Ok(trail);
+        var result = await pages.GetBreadcrumbAsync(id, ct);
+        return result.Status switch
+        {
+            OperationStatus.Success => Ok(result.Value),
+            OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
+            _ => Problem(statusCode: 400, detail: result.Error),
+        };
     }
 
     /// <summary>Rename a page and/or set its icon.</summary>
@@ -69,6 +75,7 @@ public class PagesController(PageService pages) : ControllerBase
         {
             OperationStatus.Success => NoContent(),
             OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
             _ => Problem(statusCode: 400, detail: result.Error),
         };
     }
@@ -90,6 +97,7 @@ public class PagesController(PageService pages) : ControllerBase
         {
             OperationStatus.Success => Ok(result.Value),
             OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
             _ => Problem(statusCode: 400, detail: result.Error),
         };
     }
@@ -109,6 +117,7 @@ public class PagesController(PageService pages) : ControllerBase
         {
             OperationStatus.Success => Ok(result.Value),
             OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
             _ => Problem(statusCode: 400, detail: result.Error),
         };
 }

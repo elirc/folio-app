@@ -1,17 +1,21 @@
 using System.Text.Json;
+using Folio.Api.Auth;
 using Folio.Api.Contracts;
+using Folio.Domain.Enums;
 using Folio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Folio.Api.Services;
 
 /// <summary>Full-text search over page titles and block text within a workspace.</summary>
-public class SearchService(FolioDbContext db)
+public class SearchService(FolioDbContext db, ICurrentMemberAccessor current)
 {
-    /// <summary>Returns hits, or null if the workspace is unknown.</summary>
+    /// <summary>Returns hits (respecting page visibility), or null if the workspace is unknown/foreign.</summary>
     public async Task<IReadOnlyList<SearchResultResponse>?> SearchAsync(Guid workspaceId, string? query, CancellationToken ct)
     {
-        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        var member = current.Member;
+        if (member is null || member.WorkspaceId != workspaceId
+            || !await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
         {
             return null;
         }
@@ -23,9 +27,12 @@ public class SearchService(FolioDbContext db)
         }
 
         var pattern = $"%{Escape(term)}%";
+        var isOwner = member.Role == MemberRole.Owner;
 
         var hits = await db.Pages
             .Where(p => p.WorkspaceId == workspaceId
+                // Non-owners never see private pages in results.
+                && (isOwner || p.Visibility != PageVisibility.Private)
                 && (EF.Functions.Like(p.Title, pattern, "\\")
                     || p.Blocks.Any(b => EF.Functions.Like(b.Content, pattern, "\\"))))
             .OrderBy(p => p.Title)

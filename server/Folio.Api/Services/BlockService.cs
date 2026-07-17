@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Folio.Api.Auth;
 using Folio.Api.Contracts;
 using Folio.Domain.Entities;
 using Folio.Domain.Enums;
@@ -8,16 +9,24 @@ using Microsoft.EntityFrameworkCore;
 namespace Folio.Api.Services;
 
 /// <summary>Typed content-block operations, ordered per page.</summary>
-public class BlockService(FolioDbContext db)
+public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
 {
     private static DateTime Now => DateTime.UtcNow;
 
-    /// <summary>Blocks for a page in order, or null if the page does not exist.</summary>
-    public async Task<IReadOnlyList<BlockResponse>?> GetForPageAsync(Guid pageId, CancellationToken ct)
+    private CurrentMember? Member => current.Member;
+
+    /// <summary>Blocks for a page in order (403/404 when the page isn't readable).</summary>
+    public async Task<ServiceResult<IReadOnlyList<BlockResponse>>> GetForPageAsync(Guid pageId, CancellationToken ct)
     {
-        if (!await db.Pages.AnyAsync(p => p.Id == pageId, ct))
+        var info = await PageAuthInfoAsync(pageId, ct);
+        if (info is null)
         {
-            return null;
+            return ServiceResult<IReadOnlyList<BlockResponse>>.NotFound("Page not found.");
+        }
+
+        if (Guard<IReadOnlyList<BlockResponse>>(PageAuthorization.CanRead(Member, info.WorkspaceId, info.Visibility)) is { } denied)
+        {
+            return denied;
         }
 
         var blocks = await db.Blocks
@@ -25,14 +34,20 @@ public class BlockService(FolioDbContext db)
             .OrderBy(b => b.Position)
             .ToListAsync(ct);
 
-        return blocks.Select(ToResponse).ToList();
+        return ServiceResult<IReadOnlyList<BlockResponse>>.Ok(blocks.Select(ToResponse).ToList());
     }
 
     public async Task<ServiceResult<BlockResponse>> CreateAsync(Guid pageId, CreateBlockRequest request, CancellationToken ct)
     {
-        if (!await db.Pages.AnyAsync(p => p.Id == pageId, ct))
+        var info = await PageAuthInfoAsync(pageId, ct);
+        if (info is null)
         {
             return ServiceResult<BlockResponse>.NotFound("Page not found.");
+        }
+
+        if (Guard<BlockResponse>(PageAuthorization.CanWrite(Member, info.WorkspaceId, info.Visibility, info.Permission)) is { } denied)
+        {
+            return denied;
         }
 
         if (request.Content is not { ValueKind: JsonValueKind.Object } content)
@@ -71,6 +86,11 @@ public class BlockService(FolioDbContext db)
             return ServiceResult<BlockResponse>.NotFound("Block not found.");
         }
 
+        if (await WriteGuardAsync<BlockResponse>(block.PageId, ct) is { } denied)
+        {
+            return denied;
+        }
+
         if (request.Content is not { ValueKind: JsonValueKind.Object } content)
         {
             return ServiceResult<BlockResponse>.Invalid("Block content must be a JSON object.");
@@ -97,6 +117,11 @@ public class BlockService(FolioDbContext db)
             return ServiceResult<BlockResponse>.NotFound("Block not found.");
         }
 
+        if (await WriteGuardAsync<BlockResponse>(block.PageId, ct) is { } denied)
+        {
+            return denied;
+        }
+
         var siblings = await OrderedBlocksAsync(block.PageId, excluding: blockId, ct);
         var insertAt = Clamp(request.Position, 0, siblings.Count);
         siblings.Insert(insertAt, block);
@@ -117,6 +142,11 @@ public class BlockService(FolioDbContext db)
             return ServiceResult<bool>.NotFound("Block not found.");
         }
 
+        if (await WriteGuardAsync<bool>(block.PageId, ct) is { } denied)
+        {
+            return denied;
+        }
+
         var pageId = block.PageId;
         db.Blocks.Remove(block);
         await db.SaveChangesAsync(ct);
@@ -128,6 +158,37 @@ public class BlockService(FolioDbContext db)
 
         return ServiceResult<bool>.Ok(true);
     }
+
+    // ---- authorization helpers ----
+
+    /// <summary>Minimal page fields needed to authorize a block operation.</summary>
+    private sealed record PageAuthInfo(Guid WorkspaceId, PageVisibility Visibility, SharePermission Permission);
+
+    private Task<PageAuthInfo?> PageAuthInfoAsync(Guid pageId, CancellationToken ct) =>
+        db.Pages
+            .Where(p => p.Id == pageId)
+            .Select(p => new PageAuthInfo(p.WorkspaceId, p.Visibility, p.Permission))
+            .FirstOrDefaultAsync(ct);
+
+    /// <summary>Loads the block's page and denies (403/404) if the caller can't write it; null when allowed.</summary>
+    private async Task<ServiceResult<T>?> WriteGuardAsync<T>(Guid pageId, CancellationToken ct)
+    {
+        var info = await PageAuthInfoAsync(pageId, ct);
+        if (info is null)
+        {
+            return ServiceResult<T>.NotFound("Page not found.");
+        }
+
+        return Guard<T>(PageAuthorization.CanWrite(Member, info.WorkspaceId, info.Visibility, info.Permission));
+    }
+
+    /// <summary>Maps an access result to a denial ServiceResult, or null when allowed.</summary>
+    private static ServiceResult<T>? Guard<T>(AccessResult access) => access switch
+    {
+        AccessResult.Allowed => null,
+        AccessResult.Forbidden => ServiceResult<T>.Forbidden("You don't have permission to modify this page."),
+        _ => ServiceResult<T>.NotFound("Page not found."),
+    };
 
     // ---- helpers ----
 

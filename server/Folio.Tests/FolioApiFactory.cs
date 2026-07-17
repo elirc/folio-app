@@ -1,3 +1,6 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using Folio.Api.Contracts;
 using Folio.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -32,6 +35,29 @@ public class FolioApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions>();
             services.AddDbContext<FolioDbContext>(options => options.UseSqlite(_connection));
         });
+    }
+
+    /// <summary>
+    /// A client whose default Authorization header carries a bearer token for the
+    /// given seeded member (default: the workspace Owner). Logs in over the real
+    /// endpoint so the whole auth path is exercised.
+    /// </summary>
+    public HttpClient CreateAuthenticatedClient(string email = DbSeeder.OwnerEmail)
+    {
+        var client = CreateClient();
+        var token = LoginAsync(client, email).GetAwaiter().GetResult();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    private static async Task<string> LoginAsync(HttpClient client, string email)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email, password = DbSeeder.DefaultPassword });
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<LoginResponse>(TestJson.Options);
+        return body!.Token;
     }
 
     /// <summary>Runs an action against a fresh scoped <see cref="FolioDbContext"/>.</summary>

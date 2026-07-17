@@ -1,3 +1,4 @@
+using Folio.Api.Auth;
 using Folio.Api.Contracts;
 using Folio.Domain.Entities;
 using Folio.Domain.Enums;
@@ -7,23 +8,30 @@ using Microsoft.EntityFrameworkCore;
 namespace Folio.Api.Services;
 
 /// <summary>Page tree operations: read, create, rename, move/reorder, delete.</summary>
-public class PageService(FolioDbContext db)
+public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
 {
     private static DateTime Now => DateTime.UtcNow;
 
-    /// <summary>Returns the nested page tree for a workspace, or null if the workspace is unknown.</summary>
+    private CurrentMember? Member => current.Member;
+
+    /// <summary>Returns the nested page tree for a workspace, or null if the workspace is unknown/foreign.</summary>
     public async Task<IReadOnlyList<PageTreeNode>?> GetTreeAsync(Guid workspaceId, CancellationToken ct)
     {
-        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        var member = Member;
+        if (member is null || member.WorkspaceId != workspaceId
+            || !await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
         {
             return null;
         }
 
-        var pages = await db.Pages
+        var pages = (await db.Pages
             .Where(p => p.WorkspaceId == workspaceId)
             .OrderBy(p => p.Position)
-            .Select(p => new { p.Id, p.ParentId, p.Title, p.Icon, p.Position, p.IsFavorite })
-            .ToListAsync(ct);
+            .Select(p => new { p.Id, p.ParentId, p.Title, p.Icon, p.Position, p.IsFavorite, p.Visibility })
+            .ToListAsync(ct))
+            // Hide pages the caller isn't allowed to see (e.g. private pages for non-owners).
+            .Where(p => PageAuthorization.CanSeeVisibility(member, p.Visibility))
+            .ToList();
 
         // ToLookup (unlike Dictionary) permits a null key, which is what root
         // pages have (ParentId == null); the indexer also returns an empty
@@ -40,27 +48,46 @@ public class PageService(FolioDbContext db)
         return Build(null);
     }
 
-    public async Task<PageDetailResponse?> GetDetailAsync(Guid pageId, CancellationToken ct)
+    public async Task<ServiceResult<PageDetailResponse>> GetDetailAsync(Guid pageId, CancellationToken ct)
     {
         var page = await db.Pages.FirstOrDefaultAsync(p => p.Id == pageId, ct);
-        return page is null ? null : await ToDetailAsync(page, ct);
+        if (page is null)
+        {
+            return ServiceResult<PageDetailResponse>.NotFound("Page not found.");
+        }
+
+        return ReadGuard<PageDetailResponse>(page.WorkspaceId, page.Visibility)
+            ?? ServiceResult<PageDetailResponse>.Ok(await ToDetailAsync(page, ct));
     }
 
-    public async Task<IReadOnlyList<BreadcrumbItem>?> GetBreadcrumbAsync(Guid pageId, CancellationToken ct)
+    public async Task<ServiceResult<IReadOnlyList<BreadcrumbItem>>> GetBreadcrumbAsync(Guid pageId, CancellationToken ct)
     {
         var page = await db.Pages
             .Where(p => p.Id == pageId)
-            .Select(p => new { p.WorkspaceId })
+            .Select(p => new { p.WorkspaceId, p.Visibility })
             .FirstOrDefaultAsync(ct);
+        if (page is null)
+        {
+            return ServiceResult<IReadOnlyList<BreadcrumbItem>>.NotFound("Page not found.");
+        }
 
-        return page is null ? null : await BuildBreadcrumbAsync(page.WorkspaceId, pageId, ct);
+        return ReadGuard<IReadOnlyList<BreadcrumbItem>>(page.WorkspaceId, page.Visibility)
+            ?? ServiceResult<IReadOnlyList<BreadcrumbItem>>.Ok(await BuildBreadcrumbAsync(page.WorkspaceId, pageId, ct));
     }
 
     public async Task<ServiceResult<PageDetailResponse>> CreateAsync(Guid workspaceId, CreatePageRequest request, CancellationToken ct)
     {
-        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        var member = Member;
+        if (member is null || member.WorkspaceId != workspaceId
+            || !await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
         {
             return ServiceResult<PageDetailResponse>.NotFound("Workspace not found.");
+        }
+
+        // Creating pages is a write; Viewers may not.
+        if (member.Role == MemberRole.Viewer)
+        {
+            return ServiceResult<PageDetailResponse>.Forbidden("Viewers cannot create pages.");
         }
 
         if (request.ParentId is Guid parentId &&
@@ -100,6 +127,11 @@ public class PageService(FolioDbContext db)
             return ServiceResult<PageDetailResponse>.NotFound("Page not found.");
         }
 
+        if (WriteGuard<PageDetailResponse>(page.WorkspaceId, page.Visibility, page.Permission) is { } denied)
+        {
+            return denied;
+        }
+
         page.Title = request.Title!.Trim();
         page.Icon = request.Icon;
         page.UpdatedAt = Now;
@@ -114,6 +146,11 @@ public class PageService(FolioDbContext db)
         if (page is null)
         {
             return ServiceResult<PageDetailResponse>.NotFound("Page not found.");
+        }
+
+        if (WriteGuard<PageDetailResponse>(page.WorkspaceId, page.Visibility, page.Permission) is { } denied)
+        {
+            return denied;
         }
 
         if (request.ParentId is Guid newParentId)
@@ -164,6 +201,11 @@ public class PageService(FolioDbContext db)
             return ServiceResult<bool>.NotFound("Page not found.");
         }
 
+        if (WriteGuard<bool>(page.WorkspaceId, page.Visibility, page.Permission) is { } denied)
+        {
+            return denied;
+        }
+
         var subtreeIds = await DescendantIdsAsync(page.WorkspaceId, pageId, ct);
         subtreeIds.Add(pageId);
 
@@ -196,6 +238,11 @@ public class PageService(FolioDbContext db)
         if (page is null)
         {
             return ServiceResult<PageDetailResponse>.NotFound("Trashed page not found.");
+        }
+
+        if (WriteGuard<PageDetailResponse>(page.WorkspaceId, page.Visibility, page.Permission) is { } denied)
+        {
+            return denied;
         }
 
         // If the parent is missing or still trashed, restore to the root so the
@@ -231,16 +278,20 @@ public class PageService(FolioDbContext db)
     /// <summary>Lists the roots of trashed subtrees for a workspace.</summary>
     public async Task<IReadOnlyList<TrashItemResponse>?> GetTrashAsync(Guid workspaceId, CancellationToken ct)
     {
-        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        var member = Member;
+        if (member is null || member.WorkspaceId != workspaceId
+            || !await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
         {
             return null;
         }
 
-        var deleted = await db.Pages
+        var deleted = (await db.Pages
             .IgnoreQueryFilters()
             .Where(p => p.WorkspaceId == workspaceId && p.IsDeleted)
-            .Select(p => new { p.Id, p.ParentId, p.Title, p.Icon, p.DeletedAt })
-            .ToListAsync(ct);
+            .Select(p => new { p.Id, p.ParentId, p.Title, p.Icon, p.DeletedAt, p.Visibility })
+            .ToListAsync(ct))
+            .Where(p => PageAuthorization.CanSeeVisibility(member, p.Visibility))
+            .ToList();
 
         var deletedIds = deleted.Select(p => p.Id).ToHashSet();
 
@@ -258,6 +309,11 @@ public class PageService(FolioDbContext db)
         if (page is null)
         {
             return ServiceResult<ShareResponse>.NotFound("Page not found.");
+        }
+
+        if (WriteGuard<ShareResponse>(page.WorkspaceId, page.Visibility, page.Permission) is { } denied)
+        {
+            return denied;
         }
 
         page.Visibility = request.Visibility!.Value;
@@ -287,6 +343,12 @@ public class PageService(FolioDbContext db)
             return ServiceResult<PageDetailResponse>.NotFound("Page not found.");
         }
 
+        // Favoriting only needs read access (anyone who can see the page can star it).
+        if (ReadGuard<PageDetailResponse>(page.WorkspaceId, page.Visibility) is { } denied)
+        {
+            return denied;
+        }
+
         page.IsFavorite = isFavorite;
         page.UpdatedAt = Now;
         await db.SaveChangesAsync(ct);
@@ -296,16 +358,21 @@ public class PageService(FolioDbContext db)
 
     public async Task<IReadOnlyList<FavoriteResponse>?> GetFavoritesAsync(Guid workspaceId, CancellationToken ct)
     {
-        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        var member = Member;
+        if (member is null || member.WorkspaceId != workspaceId
+            || !await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
         {
             return null;
         }
 
-        return await db.Pages
+        return (await db.Pages
             .Where(p => p.WorkspaceId == workspaceId && p.IsFavorite)
             .OrderBy(p => p.Title)
+            .Select(p => new { p.Id, p.Title, p.Icon, p.Visibility })
+            .ToListAsync(ct))
+            .Where(p => PageAuthorization.CanSeeVisibility(member, p.Visibility))
             .Select(p => new FavoriteResponse(p.Id, p.Title, p.Icon))
-            .ToListAsync(ct);
+            .ToList();
     }
 
     /// <summary>A paginated, most-recently-updated-first list of a workspace's pages.</summary>
@@ -315,12 +382,16 @@ public class PageService(FolioDbContext db)
         int pageSize,
         CancellationToken ct)
     {
-        if (!await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
+        var member = Member;
+        if (member is null || member.WorkspaceId != workspaceId
+            || !await db.Workspaces.AnyAsync(w => w.Id == workspaceId, ct))
         {
             return null;
         }
 
-        var baseQuery = db.Pages.Where(p => p.WorkspaceId == workspaceId);
+        // Only pages the caller may see are counted and paged (private pages are owner-only).
+        var baseQuery = db.Pages.Where(p => p.WorkspaceId == workspaceId
+            && (member.Role == MemberRole.Owner || p.Visibility != PageVisibility.Private));
         var total = await baseQuery.CountAsync(ct);
 
         var rows = await baseQuery
@@ -380,6 +451,26 @@ public class PageService(FolioDbContext db)
             .FirstOrDefaultAsync(p => p.PublicSlug == slug && p.Visibility == PageVisibility.Public, ct);
         return page is null ? null : await ToDetailAsync(page, ct);
     }
+
+    // ---- authorization helpers ----
+
+    /// <summary>Non-null denial result when the caller may not read the page; null when allowed.</summary>
+    private ServiceResult<T>? ReadGuard<T>(Guid workspaceId, PageVisibility visibility) =>
+        PageAuthorization.CanRead(Member, workspaceId, visibility) switch
+        {
+            AccessResult.Allowed => null,
+            AccessResult.Forbidden => ServiceResult<T>.Forbidden("You don't have access to this page."),
+            _ => ServiceResult<T>.NotFound("Page not found."),
+        };
+
+    /// <summary>Non-null denial result when the caller may not modify the page; null when allowed.</summary>
+    private ServiceResult<T>? WriteGuard<T>(Guid workspaceId, PageVisibility visibility, SharePermission permission) =>
+        PageAuthorization.CanWrite(Member, workspaceId, visibility, permission) switch
+        {
+            AccessResult.Allowed => null,
+            AccessResult.Forbidden => ServiceResult<T>.Forbidden("You don't have permission to modify this page."),
+            _ => ServiceResult<T>.NotFound("Page not found."),
+        };
 
     // ---- helpers ----
 

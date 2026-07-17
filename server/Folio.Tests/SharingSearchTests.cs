@@ -12,7 +12,7 @@ public class SharingSearchTests : IDisposable
     private readonly FolioApiFactory _factory = new();
     private readonly HttpClient _client;
 
-    public SharingSearchTests() => _client = _factory.CreateClient();
+    public SharingSearchTests() => _client = _factory.CreateAuthenticatedClient();
 
     public void Dispose()
     {
