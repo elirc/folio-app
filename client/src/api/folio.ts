@@ -1,7 +1,9 @@
 import { api } from "./client";
 import type {
   Block,
+  Comment,
   CreateBlockInput,
+  CreateCommentInput,
   CreatePageInput,
   Favorite,
   LoginInput,
@@ -105,3 +107,24 @@ export const saveVersion = (pageId: string) =>
 
 export const restoreVersion = (pageId: string, versionNumber: number) =>
   api.post<VersionSummary>(`/api/pages/${pageId}/versions/${versionNumber}/restore`);
+
+// ---- workspace members ----
+
+export const getMembers = (workspaceId: string, signal?: AbortSignal) =>
+  api.get<Member[]>(`/api/workspaces/${workspaceId}/members`, signal);
+
+// ---- comments & mentions ----
+
+export const getComments = (pageId: string, signal?: AbortSignal) =>
+  api.get<Comment[]>(`/api/pages/${pageId}/comments`, signal);
+
+export const createComment = (pageId: string, input: CreateCommentInput) =>
+  api.post<Comment>(`/api/pages/${pageId}/comments`, input);
+
+export const resolveComment = (commentId: string) =>
+  api.post<Comment>(`/api/comments/${commentId}/resolve`);
+
+export const unresolveComment = (commentId: string) =>
+  api.post<Comment>(`/api/comments/${commentId}/unresolve`);
+
+export const deleteComment = (commentId: string) => api.delete<void>(`/api/comments/${commentId}`);

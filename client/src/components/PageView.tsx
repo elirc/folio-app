@@ -4,6 +4,7 @@ import type { PageDetail } from "../api/types";
 import { favoritePage, getPage, renamePage, unfavoritePage } from "../api/folio";
 import { useAsync } from "../hooks/useAsync";
 import { BlockList } from "./BlockList";
+import { CommentSidebar } from "./CommentSidebar";
 import { HistoryPanel } from "./HistoryPanel";
 import { ShareDialog } from "./ShareDialog";
 
@@ -22,6 +23,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
   const [title, setTitle] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   // Bumping this remounts BlockList so it refetches after a version restore.
   const [blocksNonce, setBlocksNonce] = useState(0);
   useEffect(() => {
@@ -30,6 +32,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
     }
     setShareOpen(false);
     setHistoryOpen(false);
+    setCommentsOpen(false);
   }, [data]);
 
   function onHistoryChanged() {
@@ -96,6 +99,9 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
           >
             {data.isFavorite ? "★" : "☆"}
           </button>
+          <button type="button" className="share-btn" onClick={() => setCommentsOpen((v) => !v)}>
+            Comments
+          </button>
           <button type="button" className="share-btn" onClick={() => setHistoryOpen((v) => !v)}>
             History
           </button>
@@ -114,6 +120,14 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
           pageId={data.id}
           onChanged={onHistoryChanged}
           onClose={() => setHistoryOpen(false)}
+        />
+      )}
+
+      {commentsOpen && (
+        <CommentSidebar
+          pageId={data.id}
+          workspaceId={workspaceId}
+          onClose={() => setCommentsOpen(false)}
         />
       )}
 

@@ -198,3 +198,31 @@ export interface VersionDetail {
   label: string | null;
   createdAt: string;
 }
+
+// ---- comments & mentions ----
+
+export interface MentionRef {
+  memberId: string;
+  name: string;
+}
+
+export interface Comment {
+  id: string;
+  pageId: string;
+  blockId: string | null;
+  parentCommentId: string | null;
+  authorMemberId: string;
+  authorName: string;
+  body: string;
+  isResolved: boolean;
+  resolvedAt: string | null;
+  mentions: MentionRef[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCommentInput {
+  body: string;
+  blockId?: string | null;
+  parentCommentId?: string | null;
+}
