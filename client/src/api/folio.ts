@@ -17,6 +17,8 @@ import type {
   MoveBlockInput,
   MovePageInput,
   Notification,
+  QuickOpenResult,
+  SearchFilters,
   PageDetail,
   PageTreeNode,
   PageVisibility,
@@ -82,6 +84,27 @@ export const deleteBlock = (blockId: string) => api.delete<void>(`/api/blocks/${
 export const searchPages = (workspaceId: string, query: string, signal?: AbortSignal) =>
   api.get<SearchResult[]>(
     `/api/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}`,
+    signal,
+  );
+
+export const searchPagesFiltered = (
+  workspaceId: string,
+  query: string,
+  filters: SearchFilters,
+  signal?: AbortSignal,
+) => {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  if (filters.author) params.set("author", filters.author);
+  if (filters.favorites) params.set("favorites", "true");
+  if (filters.updatedAfter) params.set("updatedAfter", filters.updatedAfter);
+  if (filters.updatedBefore) params.set("updatedBefore", filters.updatedBefore);
+  return api.get<SearchResult[]>(`/api/workspaces/${workspaceId}/search?${params.toString()}`, signal);
+};
+
+export const quickOpen = (workspaceId: string, query: string, signal?: AbortSignal) =>
+  api.get<QuickOpenResult[]>(
+    `/api/workspaces/${workspaceId}/quick-open?q=${encodeURIComponent(query)}`,
     signal,
   );
 

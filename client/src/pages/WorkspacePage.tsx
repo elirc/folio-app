@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import type { PageTreeNode } from "../api/types";
 import { getPageTree } from "../api/folio";
@@ -8,12 +9,27 @@ import { SearchBox } from "../components/SearchBox";
 import { FavoritesList } from "../components/FavoritesList";
 import { TrashView } from "../components/TrashView";
 import { TemplateGallery } from "../components/TemplateGallery";
+import { SearchPage } from "../components/SearchPage";
+import { QuickOpenModal } from "../components/QuickOpenModal";
 
 export function WorkspacePage() {
   const { workspaceId = "", pageId } = useParams();
   const location = useLocation();
   const isTrash = location.pathname.endsWith("/trash");
   const isTemplates = location.pathname.endsWith("/templates");
+  const isSearch = location.pathname.endsWith("/search");
+
+  const [quickOpenVisible, setQuickOpenVisible] = useState(false);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setQuickOpenVisible((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const { data, error, loading, reload } = useAsync<PageTreeNode[]>(
     (signal) => getPageTree(workspaceId, signal),
@@ -37,6 +53,9 @@ export function WorkspacePage() {
             />
           </>
         )}
+        <Link to={`/w/${workspaceId}/search`} className="trash-link">
+          🔎 Search
+        </Link>
         <Link to={`/w/${workspaceId}/templates`} className="trash-link">
           📋 Templates
         </Link>
@@ -46,7 +65,9 @@ export function WorkspacePage() {
       </aside>
 
       <section className="workspace-main">
-        {isTemplates ? (
+        {isSearch ? (
+          <SearchPage workspaceId={workspaceId} />
+        ) : isTemplates ? (
           <TemplateGallery workspaceId={workspaceId} onChanged={reload} />
         ) : isTrash ? (
           <TrashView workspaceId={workspaceId} onChanged={reload} />
@@ -59,6 +80,10 @@ export function WorkspacePage() {
           </div>
         )}
       </section>
+
+      {quickOpenVisible && (
+        <QuickOpenModal workspaceId={workspaceId} onClose={() => setQuickOpenVisible(false)} />
+      )}
     </div>
   );
 }

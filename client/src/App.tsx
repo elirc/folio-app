@@ -17,6 +17,7 @@ export function App() {
           <Route path="/w/:workspaceId/p/:pageId" element={<WorkspacePage />} />
           <Route path="/w/:workspaceId/trash" element={<WorkspacePage />} />
           <Route path="/w/:workspaceId/templates" element={<WorkspacePage />} />
+          <Route path="/w/:workspaceId/search" element={<WorkspacePage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>

@@ -20,7 +20,22 @@ public record SearchResultResponse(
     string Title,
     string? Icon,
     bool MatchedTitle,
-    string? Snippet);
+    string? Snippet,
+    DateTime UpdatedAt);
+
+/// <summary>Optional filters layered on top of a full-text search.</summary>
+public record SearchFilters(
+    Guid? Author,
+    bool? Favorites,
+    DateTime? UpdatedAfter,
+    DateTime? UpdatedBefore);
+
+/// <summary>A ranked quick-open hit (title-prefix match or a recent page).</summary>
+public record QuickOpenResult(
+    Guid PageId,
+    string Title,
+    string? Icon,
+    DateTime UpdatedAt);
 
 /// <summary>A page currently in the trash.</summary>
 public record TrashItemResponse(
