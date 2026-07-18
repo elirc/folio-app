@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Folio.Api.Services;
 
 /// <summary>Typed content-block operations, ordered per page.</summary>
-public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
+public class BlockService(FolioDbContext db, ICurrentMemberAccessor current, ActivityService activity)
 {
     private static DateTime Now => DateTime.UtcNow;
 
@@ -81,6 +81,7 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
         db.Blocks.Add(block);
         await SyncLinksAsync(block, ct);
         await TouchPageAsync(pageId, ct);
+        activity.Add(info.WorkspaceId, Member!, ActivityTypes.BlockCreated, pageId, info.Title, $"added a {block.Type} block to \"{info.Title}\"");
         await db.SaveChangesAsync(ct);
 
         return ServiceResult<BlockResponse>.Ok(ToResponse(block));
@@ -94,7 +95,8 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
             return ServiceResult<BlockResponse>.NotFound("Block not found.");
         }
 
-        if (await WriteGuardAsync<BlockResponse>(block.PageId, ct) is { } denied)
+        var (info, denied) = await WriteInfoAsync<BlockResponse>(block.PageId, ct);
+        if (denied is not null)
         {
             return denied;
         }
@@ -113,6 +115,7 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
         block.UpdatedAt = Now;
         await SyncLinksAsync(block, ct);
         await TouchPageAsync(block.PageId, ct);
+        activity.Add(info!.WorkspaceId, Member!, ActivityTypes.BlockUpdated, block.PageId, info.Title, $"edited a {block.Type} block on \"{info.Title}\"");
         await db.SaveChangesAsync(ct);
 
         return ServiceResult<BlockResponse>.Ok(ToResponse(block));
@@ -126,7 +129,8 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
             return ServiceResult<BlockResponse>.NotFound("Block not found.");
         }
 
-        if (await WriteGuardAsync<BlockResponse>(block.PageId, ct) is { } denied)
+        var (_, denied) = await WriteInfoAsync<BlockResponse>(block.PageId, ct);
+        if (denied is not null)
         {
             return denied;
         }
@@ -180,7 +184,8 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
             return ServiceResult<bool>.NotFound("Block not found.");
         }
 
-        if (await WriteGuardAsync<bool>(block.PageId, ct) is { } denied)
+        var (info, denied) = await WriteInfoAsync<bool>(block.PageId, ct);
+        if (denied is not null)
         {
             return denied;
         }
@@ -198,6 +203,7 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
         var remaining = await OrderedBlocksAsync(pageId, parentId, excluding: null, ct);
         Reindex(remaining);
         await TouchPageAsync(pageId, ct);
+        activity.Add(info!.WorkspaceId, Member!, ActivityTypes.BlockDeleted, pageId, info.Title, $"deleted a block from \"{info.Title}\"");
         await db.SaveChangesAsync(ct);
 
         return ServiceResult<bool>.Ok(true);
@@ -206,24 +212,24 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
     // ---- authorization helpers ----
 
     /// <summary>Minimal page fields needed to authorize a block operation.</summary>
-    private sealed record PageAuthInfo(Guid WorkspaceId, PageVisibility Visibility, SharePermission Permission);
+    private sealed record PageAuthInfo(Guid WorkspaceId, PageVisibility Visibility, SharePermission Permission, string Title);
 
     private Task<PageAuthInfo?> PageAuthInfoAsync(Guid pageId, CancellationToken ct) =>
         db.Pages
             .Where(p => p.Id == pageId)
-            .Select(p => new PageAuthInfo(p.WorkspaceId, p.Visibility, p.Permission))
+            .Select(p => new PageAuthInfo(p.WorkspaceId, p.Visibility, p.Permission, p.Title))
             .FirstOrDefaultAsync(ct);
 
-    /// <summary>Loads the block's page and denies (403/404) if the caller can't write it; null when allowed.</summary>
-    private async Task<ServiceResult<T>?> WriteGuardAsync<T>(Guid pageId, CancellationToken ct)
+    /// <summary>Loads the block's page for a write, returning the page info or a denial result.</summary>
+    private async Task<(PageAuthInfo? Info, ServiceResult<T>? Denied)> WriteInfoAsync<T>(Guid pageId, CancellationToken ct)
     {
         var info = await PageAuthInfoAsync(pageId, ct);
         if (info is null)
         {
-            return ServiceResult<T>.NotFound("Page not found.");
+            return (null, ServiceResult<T>.NotFound("Page not found."));
         }
 
-        return Guard<T>(PageAuthorization.CanWrite(Member, info.WorkspaceId, info.Visibility, info.Permission));
+        return (info, Guard<T>(PageAuthorization.CanWrite(Member, info.WorkspaceId, info.Visibility, info.Permission)));
     }
 
     /// <summary>Maps an access result to a denial ServiceResult, or null when allowed.</summary>

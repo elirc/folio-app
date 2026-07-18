@@ -1,5 +1,6 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { NotificationInbox } from "./NotificationInbox";
 
 export function AppLayout() {
   const { member, logout } = useAuth();
@@ -19,6 +20,7 @@ export function AppLayout() {
         </Link>
         {member && (
           <div className="app-user">
+            <NotificationInbox />
             <span className="app-user-name">
               {member.name} <span className="app-user-role">· {member.role}</span>
             </span>

@@ -14,6 +14,8 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
     public DbSet<CommentMention> CommentMentions => Set<CommentMention>();
     public DbSet<PageLink> PageLinks => Set<PageLink>();
     public DbSet<PageTemplate> PageTemplates => Set<PageTemplate>();
+    public DbSet<Activity> Activities => Set<Activity>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -190,6 +192,31 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(t => t.WorkspaceId);
+        });
+
+        modelBuilder.Entity<Activity>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.ActorName).IsRequired().HasMaxLength(200);
+            e.Property(a => a.Type).IsRequired().HasMaxLength(40);
+            e.Property(a => a.PageTitle).HasMaxLength(400);
+            e.Property(a => a.Summary).IsRequired().HasMaxLength(500);
+            e.HasIndex(a => new { a.WorkspaceId, a.CreatedAt });
+        });
+
+        modelBuilder.Entity<Notification>(e =>
+        {
+            e.HasKey(n => n.Id);
+            e.Property(n => n.Type).IsRequired().HasMaxLength(40);
+            e.Property(n => n.PageTitle).HasMaxLength(400);
+            e.Property(n => n.Summary).IsRequired().HasMaxLength(500);
+
+            e.HasOne(n => n.Activity)
+                .WithMany()
+                .HasForeignKey(n => n.ActivityId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(n => new { n.RecipientMemberId, n.IsRead });
         });
     }
 }

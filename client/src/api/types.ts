@@ -273,3 +273,25 @@ export interface ExportResult {
   filename: string;
   markdown: string;
 }
+
+// ---- notifications & activity ----
+
+export interface Notification {
+  id: string;
+  type: string;
+  pageId: string | null;
+  pageTitle: string | null;
+  summary: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface ActivityItem {
+  id: string;
+  actorName: string;
+  type: string;
+  pageId: string | null;
+  pageTitle: string | null;
+  summary: string;
+  createdAt: string;
+}

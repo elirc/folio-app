@@ -62,6 +62,18 @@ public class WorkspacesController(FolioDbContext db, PageService pages, ICurrent
         return workspace is null ? NotFound() : Ok(workspace);
     }
 
+    /// <summary>Recent activity feed for the caller's workspace.</summary>
+    [HttpGet("{workspaceId:guid}/activity")]
+    public async Task<ActionResult<IReadOnlyList<ActivityResponse>>> Activity(
+        Guid workspaceId,
+        [FromQuery] int limit,
+        [FromServices] NotificationService notifications,
+        CancellationToken ct)
+    {
+        var feed = await notifications.GetWorkspaceActivityAsync(workspaceId, limit == 0 ? 50 : limit, ct);
+        return feed is null ? Problem(statusCode: 404, detail: "Workspace not found.") : Ok(feed);
+    }
+
     /// <summary>Members of the caller's workspace (used by the @mention picker).</summary>
     [HttpGet("{workspaceId:guid}/members")]
     public async Task<ActionResult<IReadOnlyList<MemberResponse>>> Members(Guid workspaceId, CancellationToken ct)

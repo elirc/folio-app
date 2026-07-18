@@ -20,6 +20,9 @@ public class Page
     public string Title { get; set; } = string.Empty;
     public string? Icon { get; set; }
 
+    /// <summary>The member who created the page (used for authored-page notifications).</summary>
+    public Guid? CreatedByMemberId { get; set; }
+
     /// <summary>Zero-based order among siblings sharing the same parent.</summary>
     public int Position { get; set; }
 

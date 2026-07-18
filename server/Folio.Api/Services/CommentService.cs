@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Folio.Api.Services;
 
 /// <summary>Page/block comment threads with resolve state and parsed @mentions.</summary>
-public partial class CommentService(FolioDbContext db, ICurrentMemberAccessor current)
+public partial class CommentService(FolioDbContext db, ICurrentMemberAccessor current, ActivityService activity)
 {
     private static DateTime Now => DateTime.UtcNow;
     private CurrentMember? Member => current.Member;
@@ -84,7 +84,8 @@ public partial class CommentService(FolioDbContext db, ICurrentMemberAccessor cu
             UpdatedAt = Now,
         };
 
-        foreach (var memberId in await ParseMentionsAsync(page.WorkspaceId, comment.Body, ct))
+        var mentionedIds = await ParseMentionsAsync(page.WorkspaceId, comment.Body, ct);
+        foreach (var memberId in mentionedIds)
         {
             comment.Mentions.Add(new CommentMention
             {
@@ -95,6 +96,12 @@ public partial class CommentService(FolioDbContext db, ICurrentMemberAccessor cu
         }
 
         db.Comments.Add(comment);
+
+        // Record the activity and fan notifications out to mentions, the page
+        // author, and prior commenters — all in this same transaction.
+        var record = activity.Add(page.WorkspaceId, member, ActivityTypes.CommentCreated, pageId, page.Title, $"commented on \"{page.Title}\"", comment.Id);
+        await activity.FanOutCommentAsync(record, pageId, page.CreatedByMemberId, member.MemberId, mentionedIds, ct);
+
         await db.SaveChangesAsync(ct);
 
         // Reload mention member names for the response.
@@ -206,12 +213,12 @@ public partial class CommentService(FolioDbContext db, ICurrentMemberAccessor cu
 
     // ---- authorization ----
 
-    private sealed record PageAuth(Guid WorkspaceId, PageVisibility Visibility, SharePermission Permission);
+    private sealed record PageAuth(Guid WorkspaceId, PageVisibility Visibility, SharePermission Permission, Guid? CreatedByMemberId, string Title);
 
     private Task<PageAuth?> PageAuthAsync(Guid pageId, CancellationToken ct) =>
         db.Pages
             .Where(p => p.Id == pageId)
-            .Select(p => new PageAuth(p.WorkspaceId, p.Visibility, p.Permission))
+            .Select(p => new PageAuth(p.WorkspaceId, p.Visibility, p.Permission, p.CreatedByMemberId, p.Title))
             .FirstOrDefaultAsync(ct);
 
     private ServiceResult<T>? ReadGuard<T>(Guid workspaceId, PageVisibility visibility) =>
