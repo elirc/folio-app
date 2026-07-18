@@ -845,3 +845,48 @@ a:hover {
 .link-btn:hover {
   text-decoration: underline;
 }
+
+/* ---- Links / backlinks ---- */
+.link-picker {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--muted);
+  padding: 0.15rem 0.25rem;
+  margin-top: 0.2rem;
+  cursor: pointer;
+}
+.links-panel {
+  margin: 0.75rem 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.links-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+.links-group-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0.6rem 0 0.3rem;
+}
+.links-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.link-broken {
+  color: var(--danger);
+  font-size: 0.9rem;
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0.3rem 0.4rem;
+}

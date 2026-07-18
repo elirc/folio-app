@@ -79,6 +79,7 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
         siblings.Insert(insertAt, block);
         Reindex(siblings);
         db.Blocks.Add(block);
+        await SyncLinksAsync(block, ct);
         await TouchPageAsync(pageId, ct);
         await db.SaveChangesAsync(ct);
 
@@ -110,6 +111,7 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
         }
 
         block.UpdatedAt = Now;
+        await SyncLinksAsync(block, ct);
         await TouchPageAsync(block.PageId, ct);
         await db.SaveChangesAsync(ct);
 
@@ -330,6 +332,31 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current)
         if (page is not null)
         {
             page.UpdatedAt = Now;
+        }
+    }
+
+    /// <summary>Rebuilds the materialized page-link references for a block from its content.</summary>
+    private async Task SyncLinksAsync(Block block, CancellationToken ct)
+    {
+        var existing = await db.PageLinks.Where(l => l.SourceBlockId == block.Id).ToListAsync(ct);
+        if (existing.Count > 0)
+        {
+            db.PageLinks.RemoveRange(existing);
+        }
+
+        foreach (var (targetId, title) in PageLinkParser.Extract(block.Content)
+                     .GroupBy(t => t.TargetId)
+                     .Select(g => g.First()))
+        {
+            db.PageLinks.Add(new PageLink
+            {
+                Id = Guid.NewGuid(),
+                SourcePageId = block.PageId,
+                SourceBlockId = block.Id,
+                TargetPageId = targetId,
+                TargetTitle = title,
+                CreatedAt = Now,
+            });
         }
     }
 

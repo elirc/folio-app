@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { PageDetail } from "../api/types";
 import { favoritePage, getPage, renamePage, unfavoritePage } from "../api/folio";
 import { useAsync } from "../hooks/useAsync";
+import { BacklinksPanel } from "./BacklinksPanel";
 import { BlockList } from "./BlockList";
 import { CommentSidebar } from "./CommentSidebar";
 import { HistoryPanel } from "./HistoryPanel";
@@ -24,6 +25,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
   const [shareOpen, setShareOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
   // Bumping this remounts BlockList so it refetches after a version restore.
   const [blocksNonce, setBlocksNonce] = useState(0);
   useEffect(() => {
@@ -33,6 +35,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
     setShareOpen(false);
     setHistoryOpen(false);
     setCommentsOpen(false);
+    setLinksOpen(false);
   }, [data]);
 
   function onHistoryChanged() {
@@ -102,6 +105,9 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
           <button type="button" className="share-btn" onClick={() => setCommentsOpen((v) => !v)}>
             Comments
           </button>
+          <button type="button" className="share-btn" onClick={() => setLinksOpen((v) => !v)}>
+            Links
+          </button>
           <button type="button" className="share-btn" onClick={() => setHistoryOpen((v) => !v)}>
             History
           </button>
@@ -131,6 +137,14 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
         />
       )}
 
+      {linksOpen && (
+        <BacklinksPanel
+          pageId={data.id}
+          workspaceId={workspaceId}
+          onClose={() => setLinksOpen(false)}
+        />
+      )}
+
       <input
         className="page-title-input"
         aria-label="Page title"
@@ -145,7 +159,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
       />
 
       <div className="page-body">
-        <BlockList key={blocksNonce} pageId={data.id} />
+        <BlockList key={blocksNonce} pageId={data.id} workspaceId={workspaceId} />
       </div>
     </article>
   );

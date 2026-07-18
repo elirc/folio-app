@@ -1,11 +1,12 @@
-import type { Block, BlockContent, BlockType } from "../api/types";
-import { createBlock, getBlocks } from "../api/folio";
+import type { Block, BlockContent, BlockType, LinkTarget, PageTreeNode } from "../api/types";
+import { createBlock, getBlocks, getPageTree } from "../api/folio";
 import { useAsync } from "../hooks/useAsync";
 import { AddBlockBar } from "./AddBlockBar";
 import { BlockTree } from "./BlockTree";
 
 interface BlockListProps {
   pageId: string;
+  workspaceId: string;
 }
 
 /** Groups a flat block list by parent so the tree can be rendered recursively. */
@@ -23,11 +24,27 @@ export function childrenByParent(blocks: Block[]): Map<string | null, Block[]> {
   return map;
 }
 
-export function BlockList({ pageId }: BlockListProps) {
+/** Flattens the page tree into a list of link targets, excluding the current page. */
+export function flattenTargets(nodes: PageTreeNode[], excludePageId: string): LinkTarget[] {
+  const out: LinkTarget[] = [];
+  const walk = (list: PageTreeNode[]) => {
+    for (const node of list) {
+      if (node.id !== excludePageId) {
+        out.push({ id: node.id, title: node.title, icon: node.icon });
+      }
+      walk(node.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
+export function BlockList({ pageId, workspaceId }: BlockListProps) {
   const { data, error, loading, reload } = useAsync<Block[]>(
     (signal) => getBlocks(pageId, signal),
     [pageId],
   );
+  const tree = useAsync<PageTreeNode[]>((signal) => getPageTree(workspaceId, signal), [workspaceId]);
 
   async function addRoot(type: BlockType, content: BlockContent) {
     await createBlock(pageId, { type, content });
@@ -43,13 +60,20 @@ export function BlockList({ pageId }: BlockListProps) {
 
   const byParent = childrenByParent(data);
   const roots = byParent.get(null) ?? [];
+  const linkTargets = tree.data ? flattenTargets(tree.data, pageId) : [];
 
   return (
     <div className="block-list">
       {data.length === 0 ? (
         <p className="muted">No blocks yet — add one below.</p>
       ) : (
-        <BlockTree pageId={pageId} blocks={roots} byParent={byParent} onChanged={reload} />
+        <BlockTree
+          pageId={pageId}
+          blocks={roots}
+          byParent={byParent}
+          linkTargets={linkTargets}
+          onChanged={reload}
+        />
       )}
 
       <AddBlockBar onAdd={addRoot} />

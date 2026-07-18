@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Block } from "../api/types";
 import { BlockList } from "./BlockList";
@@ -16,7 +16,7 @@ describe("BlockList", () => {
   it("renders each block's text", async () => {
     installFetchMock({ "/api/pages/pg/blocks": { json: blocks } });
 
-    render(<BlockList pageId="pg" />);
+    render(<BlockList pageId="pg" workspaceId="w1" />);
 
     expect(await screen.findByDisplayValue("Welcome")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Task")).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe("BlockList", () => {
       },
     });
 
-    render(<BlockList pageId="pg" />);
+    render(<BlockList pageId="pg" workspaceId="w1" />);
     await screen.findByDisplayValue("Welcome");
 
     // The root add bar (not a toggle's) creates a page-level block.
@@ -49,7 +49,7 @@ describe("BlockList", () => {
       "PUT /api/blocks/b2": { json: { ...blocks[1], content: { text: "Task", checked: true } } },
     });
 
-    render(<BlockList pageId="pg" />);
+    render(<BlockList pageId="pg" workspaceId="w1" />);
     await screen.findByDisplayValue("Task");
 
     await userEvent.click(screen.getByLabelText("Toggle to-do"));
@@ -70,7 +70,7 @@ describe("BlockList", () => {
     ];
     installFetchMock({ "/api/pages/pg/blocks": { json: v2 } });
 
-    render(<BlockList pageId="pg" />);
+    render(<BlockList pageId="pg" workspaceId="w1" />);
 
     expect(await screen.findByDisplayValue("Heads up")).toBeInTheDocument();
     expect(screen.getByLabelText("Divider")).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("BlockList", () => {
       },
     });
 
-    render(<BlockList pageId="pg" />);
+    render(<BlockList pageId="pg" workspaceId="w1" />);
 
     // The nested child renders under the (expanded) toggle.
     expect(await screen.findByDisplayValue("Nested item")).toBeInTheDocument();
@@ -104,5 +104,30 @@ describe("BlockList", () => {
     const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(postCall).toBeDefined();
     expect(postCall![1]?.body).toContain('"parentId":"t1"');
+  });
+
+  it("inserts a page-link token via the link picker", async () => {
+    const fetchMock = installFetchMock({
+      "/api/pages/pg/blocks": { json: blocks },
+      "/api/workspaces/w1/pages/tree": {
+        json: [
+          { id: "px", parentId: null, title: "Architecture", icon: "🏗️", position: 0, isFavorite: false, children: [] },
+        ],
+      },
+      "PUT /api/blocks/b1": { json: { ...blocks[0], content: { text: "Welcome #[Architecture](px)" } } },
+    });
+
+    render(<BlockList pageId="pg" workspaceId="w1" />);
+    await screen.findByDisplayValue("Welcome");
+
+    // The first block's link picker lists the other page and inserts a token.
+    const pickers = await screen.findAllByLabelText("Insert page link");
+    await userEvent.selectOptions(pickers[0], "px");
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(([url, init]) => String(url).includes("/blocks/b1") && init?.method === "PUT");
+      expect(put).toBeDefined();
+      expect(put![1]?.body).toContain("#[Architecture](px)");
+    });
   });
 });
