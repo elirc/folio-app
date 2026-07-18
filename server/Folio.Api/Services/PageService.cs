@@ -452,6 +452,184 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
         return page is null ? null : await ToDetailAsync(page, ct);
     }
 
+    /// <summary>Deep-copies a page and its entire subtree (descendant pages + all blocks).</summary>
+    public async Task<ServiceResult<PageDetailResponse>> DuplicateAsync(Guid pageId, CancellationToken ct)
+    {
+        var page = await db.Pages.FirstOrDefaultAsync(p => p.Id == pageId, ct);
+        if (page is null)
+        {
+            return ServiceResult<PageDetailResponse>.NotFound("Page not found.");
+        }
+
+        if (WriteGuard<PageDetailResponse>(page.WorkspaceId, page.Visibility, page.Permission) is { } denied)
+        {
+            return denied;
+        }
+
+        var subtreeIds = await DescendantIdsAsync(page.WorkspaceId, pageId, ct);
+        subtreeIds.Add(pageId);
+
+        var pages = await db.Pages.Where(p => subtreeIds.Contains(p.Id)).ToListAsync(ct);
+        var blocks = await db.Blocks.Where(b => subtreeIds.Contains(b.PageId)).ToListAsync(ct);
+
+        var pageIdMap = pages.ToDictionary(p => p.Id, _ => Guid.NewGuid());
+        var blockIdMap = blocks.ToDictionary(b => b.Id, _ => Guid.NewGuid());
+
+        // The copied root becomes a new sibling of the original.
+        var siblings = await SiblingsAsync(page.WorkspaceId, page.ParentId, excluding: null, ct);
+        var when = Now;
+
+        var newPages = pages.Select(p => new Page
+        {
+            Id = pageIdMap[p.Id],
+            WorkspaceId = p.WorkspaceId,
+            ParentId = p.Id == pageId ? p.ParentId : pageIdMap[p.ParentId!.Value],
+            Title = p.Id == pageId ? p.Title + " (copy)" : p.Title,
+            Icon = p.Icon,
+            Position = p.Id == pageId ? siblings.Count : p.Position,
+            Visibility = p.Visibility,
+            Permission = p.Permission,
+            // A copy starts un-favorited and without a public slug (the slug is unique).
+            IsFavorite = false,
+            PublicSlug = null,
+            CreatedAt = when,
+            UpdatedAt = when,
+        }).ToList();
+        db.Pages.AddRange(newPages);
+
+        // Rewrite internal page-link tokens so links within the copied subtree point
+        // at the copies (ids are unique, so a plain string replace is safe).
+        string Remap(string content)
+        {
+            foreach (var (oldId, newId) in pageIdMap)
+            {
+                content = content.Replace(oldId.ToString(), newId.ToString());
+            }
+            return content;
+        }
+
+        var newBlocks = blocks.Select(b => new Block
+        {
+            Id = blockIdMap[b.Id],
+            PageId = pageIdMap[b.PageId],
+            ParentBlockId = b.ParentBlockId is Guid pb ? blockIdMap[pb] : null,
+            Type = b.Type,
+            Position = b.Position,
+            Content = Remap(b.Content),
+            CreatedAt = when,
+            UpdatedAt = when,
+        }).ToList();
+        db.Blocks.AddRange(newBlocks);
+
+        // Materialize page links for the copied blocks.
+        foreach (var nb in newBlocks)
+        {
+            foreach (var (targetId, title) in PageLinkParser.Extract(nb.Content)
+                         .GroupBy(t => t.TargetId).Select(g => g.First()))
+            {
+                db.PageLinks.Add(new PageLink
+                {
+                    Id = Guid.NewGuid(),
+                    SourcePageId = nb.PageId,
+                    SourceBlockId = nb.Id,
+                    TargetPageId = targetId,
+                    TargetTitle = title,
+                    CreatedAt = when,
+                });
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        var newRoot = newPages.First(p => p.Id == pageIdMap[pageId]);
+        return ServiceResult<PageDetailResponse>.Ok(await ToDetailAsync(newRoot, ct));
+    }
+
+    /// <summary>Exports a page (and optionally its subtree) as Markdown.</summary>
+    public async Task<ServiceResult<ExportResponse>> ExportAsync(Guid pageId, bool includeSubtree, CancellationToken ct)
+    {
+        var page = await db.Pages.FirstOrDefaultAsync(p => p.Id == pageId, ct);
+        if (page is null)
+        {
+            return ServiceResult<ExportResponse>.NotFound("Page not found.");
+        }
+
+        var readDenied = ReadGuard<ExportResponse>(page.WorkspaceId, page.Visibility);
+        if (readDenied is not null)
+        {
+            return readDenied;
+        }
+
+        var member = Member!;
+
+        // Collect the pages to render, in DFS order with depths (for heading level).
+        var ordered = new List<(Page Page, int Depth)> { (page, 0) };
+        if (includeSubtree)
+        {
+            var descendantIds = await DescendantIdsAsync(page.WorkspaceId, pageId, ct);
+            descendantIds.Add(pageId);
+            var subtree = await db.Pages
+                .Where(p => descendantIds.Contains(p.Id))
+                .ToListAsync(ct);
+
+            var byParent = subtree.OrderBy(p => p.Position).ToLookup(p => p.ParentId);
+            ordered.Clear();
+            void Visit(Page p, int depth)
+            {
+                // Skip pages the caller can't see (their subtrees are pruned too).
+                if (!PageAuthorization.CanSeeVisibility(member, p.Visibility))
+                {
+                    return;
+                }
+                ordered.Add((p, depth));
+                foreach (var child in byParent[p.Id])
+                {
+                    Visit(child, depth + 1);
+                }
+            }
+            Visit(page, 0);
+        }
+
+        var pageIds = ordered.Select(o => o.Page.Id).ToList();
+        var allBlocks = await db.Blocks
+            .Where(b => pageIds.Contains(b.PageId))
+            .ToListAsync(ct);
+        var blocksByPage = allBlocks.ToLookup(b => b.PageId);
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var (p, depth) in ordered)
+        {
+            var hashes = new string('#', Math.Clamp(depth + 1, 1, 6));
+            var icon = string.IsNullOrEmpty(p.Icon) ? "" : p.Icon + " ";
+            sb.Append(hashes).Append(' ').Append(icon).Append(p.Title).Append("\n\n");
+
+            var md = MarkdownRenderer.RenderBlocks(
+                blocksByPage[p.Id]
+                    .Select(b => new MarkdownRenderer.MdBlock(b.Id, b.ParentBlockId, b.Type, b.Position, b.Content))
+                    .ToList());
+            if (md.Length > 0)
+            {
+                sb.Append(md).Append("\n\n");
+            }
+        }
+
+        var filename = Slugify(page.Title) + ".md";
+        return ServiceResult<ExportResponse>.Ok(new ExportResponse(filename, sb.ToString().TrimEnd() + "\n"));
+    }
+
+    private static string Slugify(string title)
+    {
+        var chars = title.Trim().ToLowerInvariant()
+            .Select(c => char.IsLetterOrDigit(c) ? c : '-')
+            .ToArray();
+        var slug = new string(chars).Trim('-');
+        while (slug.Contains("--"))
+        {
+            slug = slug.Replace("--", "-");
+        }
+        return slug.Length == 0 ? "page" : slug;
+    }
+
     // ---- authorization helpers ----
 
     /// <summary>Non-null denial result when the caller may not read the page; null when allowed.</summary>

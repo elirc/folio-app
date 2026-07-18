@@ -249,3 +249,27 @@ export interface LinkTarget {
   title: string;
   icon: string | null;
 }
+
+// ---- templates & export ----
+
+export interface Template {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description: string | null;
+  sourceTitle: string;
+  sourceIcon: string | null;
+  blockCount: number;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface CreateTemplateInput {
+  name: string;
+  description?: string | null;
+}
+
+export interface ExportResult {
+  filename: string;
+  markdown: string;
+}

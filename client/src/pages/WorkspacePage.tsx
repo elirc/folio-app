@@ -7,11 +7,13 @@ import { PageView } from "../components/PageView";
 import { SearchBox } from "../components/SearchBox";
 import { FavoritesList } from "../components/FavoritesList";
 import { TrashView } from "../components/TrashView";
+import { TemplateGallery } from "../components/TemplateGallery";
 
 export function WorkspacePage() {
   const { workspaceId = "", pageId } = useParams();
   const location = useLocation();
   const isTrash = location.pathname.endsWith("/trash");
+  const isTemplates = location.pathname.endsWith("/templates");
 
   const { data, error, loading, reload } = useAsync<PageTreeNode[]>(
     (signal) => getPageTree(workspaceId, signal),
@@ -35,13 +37,18 @@ export function WorkspacePage() {
             />
           </>
         )}
+        <Link to={`/w/${workspaceId}/templates`} className="trash-link">
+          📋 Templates
+        </Link>
         <Link to={`/w/${workspaceId}/trash`} className="trash-link">
           🗑 Trash
         </Link>
       </aside>
 
       <section className="workspace-main">
-        {isTrash ? (
+        {isTemplates ? (
+          <TemplateGallery workspaceId={workspaceId} onChanged={reload} />
+        ) : isTrash ? (
           <TrashView workspaceId={workspaceId} onChanged={reload} />
         ) : pageId ? (
           <PageView pageId={pageId} workspaceId={workspaceId} onChanged={reload} />

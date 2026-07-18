@@ -890,3 +890,38 @@ a:hover {
   gap: 0.3rem;
   padding: 0.3rem 0.4rem;
 }
+
+/* ---- Template gallery ---- */
+.template-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+  max-width: 560px;
+}
+.template-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+}
+.template-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.template-name {
+  font-weight: 600;
+}
+.template-meta {
+  font-size: 0.8rem;
+}
+.template-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}

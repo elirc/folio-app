@@ -88,6 +88,34 @@ public class PagesController(PageService pages) : ControllerBase
         return MapToDetail(result);
     }
 
+    /// <summary>Deep-copy a page and its whole subtree.</summary>
+    [HttpPost("/api/pages/{id:guid}/duplicate")]
+    public async Task<ActionResult<PageDetailResponse>> Duplicate(Guid id, CancellationToken ct)
+    {
+        var result = await pages.DuplicateAsync(id, ct);
+        return result.Status switch
+        {
+            OperationStatus.Success => Created($"/api/pages/{result.Value!.Id}", result.Value),
+            OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
+            _ => Problem(statusCode: 400, detail: result.Error),
+        };
+    }
+
+    /// <summary>Export a page (and optionally its subtree) as Markdown.</summary>
+    [HttpGet("/api/pages/{id:guid}/export")]
+    public async Task<ActionResult<ExportResponse>> Export(Guid id, [FromQuery] bool subtree, CancellationToken ct)
+    {
+        var result = await pages.ExportAsync(id, subtree, ct);
+        return result.Status switch
+        {
+            OperationStatus.Success => Ok(result.Value),
+            OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
+            OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
+            _ => Problem(statusCode: 400, detail: result.Error),
+        };
+    }
+
     /// <summary>Set a page's sharing/visibility.</summary>
     [HttpPut("/api/pages/{id:guid}/share")]
     public async Task<ActionResult<ShareResponse>> Share(Guid id, [FromBody] ShareRequest request, CancellationToken ct)

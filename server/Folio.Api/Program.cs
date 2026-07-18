@@ -36,6 +36,7 @@ builder.Services.AddScoped<Folio.Api.Services.SearchService>();
 builder.Services.AddScoped<Folio.Api.Services.PageVersionService>();
 builder.Services.AddScoped<Folio.Api.Services.CommentService>();
 builder.Services.AddScoped<Folio.Api.Services.LinkService>();
+builder.Services.AddScoped<Folio.Api.Services.TemplateService>();
 
 // ---- authentication / authorization ----
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
