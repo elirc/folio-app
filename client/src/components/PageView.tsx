@@ -23,9 +23,11 @@ interface PageViewProps {
   pageId: string;
   workspaceId: string;
   onChanged: () => void;
+  /** When false, write-only affordances are hidden (e.g. for Viewer-role members). */
+  canEdit?: boolean;
 }
 
-export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
+export function PageView({ pageId, workspaceId, onChanged, canEdit = true }: PageViewProps) {
   const navigate = useNavigate();
   const { data, error, loading, reload } = useAsync<PageDetail>(
     (signal) => getPage(pageId, signal),
@@ -151,18 +153,24 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
           <button type="button" className="share-btn" onClick={() => setHistoryOpen((v) => !v)}>
             History
           </button>
-          <button type="button" className="share-btn" onClick={duplicate}>
-            Duplicate
-          </button>
-          <button type="button" className="share-btn" onClick={saveAsTemplate}>
-            Save as template
-          </button>
+          {canEdit && (
+            <button type="button" className="share-btn" onClick={duplicate}>
+              Duplicate
+            </button>
+          )}
+          {canEdit && (
+            <button type="button" className="share-btn" onClick={saveAsTemplate}>
+              Save as template
+            </button>
+          )}
           <button type="button" className="share-btn" onClick={exportMarkdown}>
             Export
           </button>
-          <button type="button" className="share-btn" onClick={() => setShareOpen((v) => !v)}>
-            Share
-          </button>
+          {canEdit && (
+            <button type="button" className="share-btn" onClick={() => setShareOpen((v) => !v)}>
+              Share
+            </button>
+          )}
         </div>
       </div>
 
@@ -198,6 +206,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
         className="page-title-input"
         aria-label="Page title"
         value={title}
+        readOnly={!canEdit}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={saveTitle}
         onKeyDown={(e) => {
@@ -208,7 +217,7 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
       />
 
       <div className="page-body">
-        <BlockList key={blocksNonce} pageId={data.id} workspaceId={workspaceId} />
+        <BlockList key={blocksNonce} pageId={data.id} workspaceId={workspaceId} canEdit={canEdit} />
       </div>
     </article>
   );

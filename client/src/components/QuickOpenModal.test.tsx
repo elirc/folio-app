@@ -41,4 +41,36 @@ describe("QuickOpenModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
+
+  it("sends the typed query and opens the top match on Enter", async () => {
+    const fetchMock = installFetchMock({
+      "/api/workspaces/w1/quick-open": { json: [recent[1]] }, // "Configuration"
+    });
+    const onClose = vi.fn();
+
+    renderWithRouter(<QuickOpenModal workspaceId="w1" onClose={onClose} />);
+    await screen.findByText("Configuration");
+
+    // Typing debounces into a quick-open request carrying the query.
+    await userEvent.type(screen.getByLabelText("Quick open search"), "Conf");
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) => String(url).includes("q=Conf"));
+      expect(call).toBeDefined();
+    });
+
+    // Enter opens the (only/top) result → the modal closes as it navigates.
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("clamps ArrowUp selection at the first result", async () => {
+    installFetchMock({ "/api/workspaces/w1/quick-open": { json: recent } });
+
+    renderWithRouter(<QuickOpenModal workspaceId="w1" onClose={vi.fn()} />);
+    await screen.findByText("Installation");
+
+    // ArrowUp from the top stays on the first option (no wrap-around).
+    await userEvent.type(screen.getByLabelText("Quick open search"), "{ArrowUp}{ArrowUp}");
+    expect(screen.getByRole("option", { name: /Installation/ })).toHaveAttribute("aria-selected", "true");
+  });
 });

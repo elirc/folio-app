@@ -7,6 +7,8 @@ import { BlockTree } from "./BlockTree";
 interface BlockListProps {
   pageId: string;
   workspaceId: string;
+  /** When false, the block editor is read-only: no add bar, gutter, or link picker. */
+  canEdit?: boolean;
 }
 
 /** Groups a flat block list by parent so the tree can be rendered recursively. */
@@ -39,7 +41,7 @@ export function flattenTargets(nodes: PageTreeNode[], excludePageId: string): Li
   return out;
 }
 
-export function BlockList({ pageId, workspaceId }: BlockListProps) {
+export function BlockList({ pageId, workspaceId, canEdit = true }: BlockListProps) {
   const { data, error, loading, reload } = useAsync<Block[]>(
     (signal) => getBlocks(pageId, signal),
     [pageId],
@@ -65,7 +67,7 @@ export function BlockList({ pageId, workspaceId }: BlockListProps) {
   return (
     <div className="block-list">
       {data.length === 0 ? (
-        <p className="muted">No blocks yet — add one below.</p>
+        <p className="muted">{canEdit ? "No blocks yet — add one below." : "No blocks yet."}</p>
       ) : (
         <BlockTree
           pageId={pageId}
@@ -73,10 +75,11 @@ export function BlockList({ pageId, workspaceId }: BlockListProps) {
           byParent={byParent}
           linkTargets={linkTargets}
           onChanged={reload}
+          readOnly={!canEdit}
         />
       )}
 
-      <AddBlockBar onAdd={addRoot} />
+      {canEdit && <AddBlockBar onAdd={addRoot} />}
     </div>
   );
 }

@@ -25,6 +25,9 @@ public class FolioApiFactory : WebApplicationFactory<Program>
     /// <summary>When set, overrides the per-user write rate-limit (used by the rate-limit test).</summary>
     public int? WritePermitLimit { get; init; }
 
+    /// <summary>When set, overrides the rate-limit window in seconds (used by the recovery test).</summary>
+    public int? WriteWindowSeconds { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _connection.Open();
@@ -35,6 +38,11 @@ public class FolioApiFactory : WebApplicationFactory<Program>
         if (WritePermitLimit is int limit)
         {
             builder.UseSetting("RateLimit:PermitLimit", limit.ToString());
+        }
+
+        if (WriteWindowSeconds is int window)
+        {
+            builder.UseSetting("RateLimit:WindowSeconds", window.ToString());
         }
 
         builder.ConfigureTestServices(services =>

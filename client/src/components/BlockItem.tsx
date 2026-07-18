@@ -13,12 +13,13 @@ interface BlockItemProps {
   byParent: Map<string | null, Block[]>;
   linkTargets: LinkTarget[];
   onChanged: () => void;
+  readOnly?: boolean;
 }
 
 /** Block types whose text can carry an inline page link. */
 const TEXT_TYPES = new Set(["Paragraph", "Heading", "Todo", "Bulleted", "Quote", "Code", "Toggle", "Callout"]);
 
-export function BlockItem({ block, index, total, pageId, byParent, linkTargets, onChanged }: BlockItemProps) {
+export function BlockItem({ block, index, total, pageId, byParent, linkTargets, onChanged, readOnly = false }: BlockItemProps) {
   const [text, setText] = useState(block.content.text ?? "");
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export function BlockItem({ block, index, total, pageId, byParent, linkTargets, 
 
   return (
     <div className={`block block-${block.type.toLowerCase()}`} data-testid="block" data-block-type={block.type}>
-      {gutter}
+      {!readOnly && gutter}
       <div className="block-main">
         <BlockBody
           block={block}
@@ -98,8 +99,9 @@ export function BlockItem({ block, index, total, pageId, byParent, linkTargets, 
           toggleChecked={toggleChecked}
           toggleCollapsed={toggleCollapsed}
           patch={patch}
+          readOnly={readOnly}
         />
-        {TEXT_TYPES.has(block.type) && linkTargets.length > 0 && (
+        {!readOnly && TEXT_TYPES.has(block.type) && linkTargets.length > 0 && (
           <LinkPicker targets={linkTargets} onPick={insertLink} />
         )}
         {block.type === "Toggle" && !block.content.collapsed && (
@@ -110,8 +112,9 @@ export function BlockItem({ block, index, total, pageId, byParent, linkTargets, 
               byParent={byParent}
               linkTargets={linkTargets}
               onChanged={onChanged}
+              readOnly={readOnly}
             />
-            <AddBlockBar onAdd={addChild} label="Add block inside toggle" />
+            {!readOnly && <AddBlockBar onAdd={addChild} label="Add block inside toggle" />}
           </div>
         )}
       </div>
@@ -127,19 +130,20 @@ interface BlockBodyProps {
   toggleChecked: () => void;
   toggleCollapsed: () => void;
   patch: (content: BlockContent) => Promise<void>;
+  readOnly: boolean;
 }
 
 /** Renders the type-specific editor for a single block. */
-function BlockBody({ block, text, setText, saveText, toggleChecked, toggleCollapsed, patch }: BlockBodyProps) {
+function BlockBody({ block, text, setText, saveText, toggleChecked, toggleCollapsed, patch, readOnly }: BlockBodyProps) {
   switch (block.type) {
     case "Divider":
       return <hr className="block-divider" aria-label="Divider" />;
 
     case "Image":
-      return <ImageBlock block={block} patch={patch} />;
+      return <ImageBlock block={block} patch={patch} readOnly={readOnly} />;
 
     case "Table":
-      return <TableBlock block={block} patch={patch} />;
+      return <TableBlock block={block} patch={patch} readOnly={readOnly} />;
 
     case "Callout":
       return (
@@ -147,7 +151,7 @@ function BlockBody({ block, text, setText, saveText, toggleChecked, toggleCollap
           <span className="block-emoji" aria-hidden>
             {block.content.emoji ?? "💡"}
           </span>
-          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Callout…" />
+          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Callout…" readOnly={readOnly} />
         </>
       );
 
@@ -160,10 +164,11 @@ function BlockBody({ block, text, setText, saveText, toggleChecked, toggleCollap
             aria-label={block.content.collapsed ? "Expand toggle" : "Collapse toggle"}
             aria-expanded={!block.content.collapsed}
             onClick={toggleCollapsed}
+            disabled={readOnly}
           >
             {block.content.collapsed ? "▸" : "▾"}
           </button>
-          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Toggle heading…" />
+          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Toggle heading…" readOnly={readOnly} />
         </>
       );
 
@@ -176,8 +181,9 @@ function BlockBody({ block, text, setText, saveText, toggleChecked, toggleCollap
             aria-label="Toggle to-do"
             checked={Boolean(block.content.checked)}
             onChange={toggleChecked}
+            disabled={readOnly}
           />
-          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Type something…" />
+          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Type something…" readOnly={readOnly} />
         </>
       );
 
@@ -187,7 +193,7 @@ function BlockBody({ block, text, setText, saveText, toggleChecked, toggleCollap
           <span className="block-bullet" aria-hidden>
             •
           </span>
-          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Type something…" />
+          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Type something…" readOnly={readOnly} />
         </>
       );
 
@@ -195,12 +201,12 @@ function BlockBody({ block, text, setText, saveText, toggleChecked, toggleCollap
       return (
         <>
           <span className="block-lang">{block.content.language ?? "text"}</span>
-          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="code…" code rows={3} />
+          <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="code…" code rows={3} readOnly={readOnly} />
         </>
       );
 
     default:
-      return <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Type something…" />;
+      return <TextArea block={block} text={text} setText={setText} saveText={saveText} placeholder="Type something…" readOnly={readOnly} />;
   }
 }
 
@@ -212,9 +218,10 @@ interface TextAreaProps {
   placeholder: string;
   code?: boolean;
   rows?: number;
+  readOnly?: boolean;
 }
 
-function TextArea({ block, text, setText, saveText, placeholder, code, rows }: TextAreaProps) {
+function TextArea({ block, text, setText, saveText, placeholder, code, rows, readOnly }: TextAreaProps) {
   const level =
     block.type === "Heading" ? Math.min(Math.max(block.content.level ?? 1, 1), 3) : undefined;
   const className =
@@ -230,6 +237,7 @@ function TextArea({ block, text, setText, saveText, placeholder, code, rows }: T
       rows={rows ?? 1}
       value={text}
       placeholder={placeholder}
+      readOnly={readOnly}
       onChange={(e) => setText(e.target.value)}
       onBlur={saveText}
     />
@@ -259,7 +267,7 @@ function LinkPicker({ targets, onPick }: { targets: LinkTarget[]; onPick: (targe
   );
 }
 
-function ImageBlock({ block, patch }: { block: Block; patch: (content: BlockContent) => Promise<void> }) {
+function ImageBlock({ block, patch, readOnly }: { block: Block; patch: (content: BlockContent) => Promise<void>; readOnly?: boolean }) {
   const [url, setUrl] = useState(block.content.url ?? "");
   const [alt, setAlt] = useState(block.content.alt ?? "");
 
@@ -282,29 +290,31 @@ function ImageBlock({ block, patch }: { block: Block; patch: (content: BlockCont
       ) : (
         <div className="image-placeholder">No image URL yet</div>
       )}
-      <div className="image-fields">
-        <input
-          className="block-input"
-          aria-label="Image URL"
-          placeholder="https://…"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onBlur={save}
-        />
-        <input
-          className="block-input"
-          aria-label="Image alt text"
-          placeholder="Alt text"
-          value={alt}
-          onChange={(e) => setAlt(e.target.value)}
-          onBlur={save}
-        />
-      </div>
+      {!readOnly && (
+        <div className="image-fields">
+          <input
+            className="block-input"
+            aria-label="Image URL"
+            placeholder="https://…"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onBlur={save}
+          />
+          <input
+            className="block-input"
+            aria-label="Image alt text"
+            placeholder="Alt text"
+            value={alt}
+            onChange={(e) => setAlt(e.target.value)}
+            onBlur={save}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-function TableBlock({ block, patch }: { block: Block; patch: (content: BlockContent) => Promise<void> }) {
+function TableBlock({ block, patch, readOnly }: { block: Block; patch: (content: BlockContent) => Promise<void>; readOnly?: boolean }) {
   const [rows, setRows] = useState<string[][]>(block.content.rows ?? []);
 
   useEffect(() => {
@@ -343,6 +353,7 @@ function TableBlock({ block, patch }: { block: Block; patch: (content: BlockCont
                     className="table-cell"
                     aria-label={`Cell ${r + 1},${c + 1}`}
                     value={cell}
+                    readOnly={readOnly}
                     onChange={(e) => editCell(r, c, e.target.value)}
                     onBlur={save}
                   />
@@ -352,14 +363,16 @@ function TableBlock({ block, patch }: { block: Block; patch: (content: BlockCont
           ))}
         </tbody>
       </table>
-      <div className="table-actions">
-        <button type="button" className="add-block-btn" onClick={addRow}>
-          + Row
-        </button>
-        <button type="button" className="add-block-btn" onClick={addColumn}>
-          + Column
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="table-actions">
+          <button type="button" className="add-block-btn" onClick={addRow}>
+            + Row
+          </button>
+          <button type="button" className="add-block-btn" onClick={addColumn}>
+            + Column
+          </button>
+        </div>
+      )}
     </div>
   );
 }
