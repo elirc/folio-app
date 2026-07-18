@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ApiError } from "../api/client";
 import type { Block, BlockContent, BlockType, LinkTarget } from "../api/types";
 import { createBlock, deleteBlock, moveBlock, updateBlock } from "../api/folio";
 import { AddBlockBar } from "./AddBlockBar";
@@ -25,8 +26,18 @@ export function BlockItem({ block, index, total, pageId, byParent, linkTargets, 
   }, [block.id, block.content.text]);
 
   async function patch(content: BlockContent) {
-    await updateBlock(block.id, { type: block.type, content });
-    onChanged();
+    try {
+      await updateBlock(block.id, { type: block.type, content, expectedVersion: block.version });
+      onChanged();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // Stale edit — refresh so the block reloads with the latest version.
+        window.alert("This block was changed by someone else. Reloading.");
+        onChanged();
+      } else {
+        throw err;
+      }
+    }
   }
 
   async function saveText() {

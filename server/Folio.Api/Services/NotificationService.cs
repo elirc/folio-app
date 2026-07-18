@@ -18,9 +18,11 @@ public class NotificationService(FolioDbContext db, ICurrentMemberAccessor curre
             return [];
         }
 
+        // Capped for the pagination audit — the inbox shows the most recent 200.
         return await db.Notifications
             .Where(n => n.RecipientMemberId == member.MemberId)
             .OrderByDescending(n => n.CreatedAt)
+            .Take(200)
             .Select(n => new NotificationResponse(n.Id, n.Type, n.PageId, n.PageTitle, n.Summary, n.IsRead, n.CreatedAt))
             .ToListAsync(ct);
     }

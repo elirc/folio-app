@@ -10,7 +10,7 @@ public class HealthEndpointTests : IClassFixture<FolioApiFactory>
     public HealthEndpointTests(FolioApiFactory factory) => _factory = factory;
 
     [Fact]
-    public async Task Health_returns_ok_status()
+    public async Task Health_returns_ok_with_db_probe_and_timestamp()
     {
         var client = _factory.CreateClient();
 
@@ -20,5 +20,7 @@ public class HealthEndpointTests : IClassFixture<FolioApiFactory>
         var body = await response.Content.ReadFromJsonAsync<HealthResponse>();
         Assert.NotNull(body);
         Assert.Equal("ok", body!.Status);
+        Assert.Equal("up", body.Database); // structured DB probe
+        Assert.NotEqual(default, body.Timestamp);
     }
 }

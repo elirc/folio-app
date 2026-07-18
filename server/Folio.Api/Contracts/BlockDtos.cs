@@ -12,6 +12,7 @@ public record BlockResponse(
     BlockType Type,
     int Position,
     JsonElement Content,
+    Guid Version,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
@@ -26,10 +27,11 @@ public record CreateBlockRequest(
     int? Position,
     Guid? ParentId);
 
-/// <summary>Update a block's payload and/or change its type.</summary>
+/// <summary>Update a block's payload and/or type. <c>ExpectedVersion</c> enables 409-on-stale-write.</summary>
 public record UpdateBlockRequest(
     BlockType? Type,
-    [Required] JsonElement? Content);
+    [Required] JsonElement? Content,
+    Guid? ExpectedVersion);
 
 /// <summary>Reorder a block within/between parents. <c>ParentId</c> null = page root.</summary>
 public record MoveBlockRequest(int Position, Guid? ParentId);

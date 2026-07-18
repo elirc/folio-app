@@ -22,12 +22,20 @@ public class FolioApiFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
 
+    /// <summary>When set, overrides the per-user write rate-limit (used by the rate-limit test).</summary>
+    public int? WritePermitLimit { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         _connection.Open();
 
         // Development so the startup path also seeds sample data.
         builder.UseEnvironment("Development");
+
+        if (WritePermitLimit is int limit)
+        {
+            builder.UseSetting("RateLimit:PermitLimit", limit.ToString());
+        }
 
         builder.ConfigureTestServices(services =>
         {

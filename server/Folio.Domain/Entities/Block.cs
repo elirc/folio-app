@@ -26,6 +26,9 @@ public class Block
     /// <summary>Type-specific payload as JSON, e.g. {"text":"…","level":1}.</summary>
     public string Content { get; set; } = "{}";
 
+    /// <summary>Optimistic-concurrency token; changes on every write, checked on stale updates.</summary>
+    public Guid Version { get; set; } = Guid.NewGuid();
+
     /// <summary>UTC.</summary>
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

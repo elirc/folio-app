@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ApiError } from "../api/client";
 import type { PageDetail } from "../api/types";
 import {
   createTemplate,
@@ -62,9 +63,19 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
       }
       return;
     }
-    await renamePage(pageId, { title: trimmed, icon: data.icon });
-    reload();
-    onChanged();
+    try {
+      await renamePage(pageId, { title: trimmed, icon: data.icon, expectedVersion: data.version });
+      reload();
+      onChanged();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // Someone edited this page first — reload the fresh version.
+        window.alert("This page was changed by someone else. Reloading the latest version.");
+        reload();
+      } else {
+        throw err;
+      }
+    }
   }
 
   async function toggleFavorite() {

@@ -28,6 +28,7 @@ public record PageDetailResponse(
     SharePermission Permission,
     string? PublicSlug,
     bool IsFavorite,
+    Guid Version,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     IReadOnlyList<BreadcrumbItem> Breadcrumb);
@@ -46,10 +47,11 @@ public record CreatePageRequest(
     int? Position,
     [MaxLength(40)] string? Icon);
 
-/// <summary>Rename a page and/or change its icon.</summary>
+/// <summary>Rename a page and/or change its icon. <c>ExpectedVersion</c> enables 409-on-stale-write.</summary>
 public record UpdatePageRequest(
     [Required][MaxLength(400)] string? Title,
-    [MaxLength(40)] string? Icon);
+    [MaxLength(40)] string? Icon,
+    Guid? ExpectedVersion);
 
 /// <summary>Move/reorder a page under a new parent (null = root) at a position.</summary>
 public record MovePageRequest(Guid? ParentId, int Position);

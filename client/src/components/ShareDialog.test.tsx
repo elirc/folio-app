@@ -18,6 +18,7 @@ const page: PageDetail = {
   permission: "View",
   publicSlug: null,
   isFavorite: false,
+  version: "v0",
   createdAt: "",
   updatedAt: "",
   breadcrumb: [],
