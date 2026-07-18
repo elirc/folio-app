@@ -52,6 +52,88 @@ a:hover {
   color: var(--muted);
 }
 
+/* ---- Notifications inbox ---- */
+.notif {
+  position: relative;
+}
+.notif-bell {
+  position: relative;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0.2rem;
+  line-height: 1;
+}
+.notif-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.notif-panel {
+  position: absolute;
+  right: 0;
+  top: 130%;
+  width: 300px;
+  z-index: 30;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  padding: 0.6rem;
+}
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+.notif-empty {
+  padding: 0.4rem;
+  font-size: 0.9rem;
+}
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.notif-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+.notif-item:hover {
+  background: #f6f8fa;
+}
+.notif-item.unread {
+  background: var(--accent-soft);
+}
+.notif-page {
+  font-size: 0.75rem;
+}
+
 /* ---- Login ---- */
 .login-page {
   display: flex;

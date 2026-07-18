@@ -28,6 +28,11 @@ public static class DbSeeder
     public const string EditorEmail = "grace@acme.test";
     public const string ViewerEmail = "linus@acme.test";
 
+    // Stable member ids so page authorship + notification targeting are deterministic.
+    public static readonly Guid OwnerMemberId = Guid.Parse("dddddddd-0000-0000-0000-000000000001");
+    public static readonly Guid EditorMemberId = Guid.Parse("dddddddd-0000-0000-0000-000000000002");
+    public static readonly Guid ViewerMemberId = Guid.Parse("dddddddd-0000-0000-0000-000000000003");
+
     // A second, isolated workspace used to exercise cross-workspace access rules.
     public static readonly Guid GlobexWorkspaceId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     public static readonly Guid GlobexHomeId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
@@ -49,9 +54,9 @@ public static class DbSeeder
             UpdatedAt = Seeded,
             Members =
             [
-                Member("Ada Lovelace", OwnerEmail, MemberRole.Owner),
-                Member("Grace Hopper", EditorEmail, MemberRole.Editor),
-                Member("Linus Torvalds", ViewerEmail, MemberRole.Viewer),
+                Member(OwnerMemberId, "Ada Lovelace", OwnerEmail, MemberRole.Owner),
+                Member(EditorMemberId, "Grace Hopper", EditorEmail, MemberRole.Editor),
+                Member(ViewerMemberId, "Linus Torvalds", ViewerEmail, MemberRole.Viewer),
             ],
         };
 
@@ -128,9 +133,12 @@ public static class DbSeeder
         db.SaveChanges();
     }
 
-    private static Member Member(string name, string email, MemberRole role) => new()
+    private static Member Member(string name, string email, MemberRole role) =>
+        Member(Guid.NewGuid(), name, email, role);
+
+    private static Member Member(Guid id, string name, string email, MemberRole role) => new()
     {
-        Id = Guid.NewGuid(),
+        Id = id,
         Name = name,
         Email = email,
         Role = role,
@@ -146,6 +154,8 @@ public static class DbSeeder
         Title = title,
         Icon = icon,
         Position = position,
+        // Seeded Acme pages are authored by the workspace owner.
+        CreatedByMemberId = OwnerMemberId,
         CreatedAt = Seeded,
         UpdatedAt = Seeded,
     };

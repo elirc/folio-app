@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Folio.Api.Services;
 
 /// <summary>Page tree operations: read, create, rename, move/reorder, delete.</summary>
-public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
+public class PageService(FolioDbContext db, ICurrentMemberAccessor current, ActivityService activity)
 {
     private static DateTime Now => DateTime.UtcNow;
 
@@ -107,6 +107,7 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
             Title = request.Title!.Trim(),
             Icon = request.Icon,
             Position = insertAt,
+            CreatedByMemberId = member.MemberId,
             CreatedAt = Now,
             UpdatedAt = Now,
         };
@@ -114,6 +115,7 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
         siblings.Insert(insertAt, page);
         Reindex(siblings);
         db.Pages.Add(page);
+        activity.Add(workspaceId, member, ActivityTypes.PageCreated, page.Id, page.Title, $"created page \"{page.Title}\"");
         await db.SaveChangesAsync(ct);
 
         return ServiceResult<PageDetailResponse>.Ok(await ToDetailAsync(page, ct));
@@ -135,6 +137,7 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
         page.Title = request.Title!.Trim();
         page.Icon = request.Icon;
         page.UpdatedAt = Now;
+        activity.Add(page.WorkspaceId, Member!, ActivityTypes.PageUpdated, page.Id, page.Title, $"renamed page to \"{page.Title}\"");
         await db.SaveChangesAsync(ct);
 
         return ServiceResult<PageDetailResponse>.Ok(await ToDetailAsync(page, ct));
@@ -219,6 +222,7 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
             p.DeletedAt = when;
         }
 
+        activity.Add(page.WorkspaceId, Member!, ActivityTypes.PageDeleted, page.Id, page.Title, $"moved page \"{page.Title}\" to trash");
         await db.SaveChangesAsync(ct);
 
         // Remaining siblings (query filter already hides the just-trashed page).
@@ -489,6 +493,7 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
             Position = p.Id == pageId ? siblings.Count : p.Position,
             Visibility = p.Visibility,
             Permission = p.Permission,
+            CreatedByMemberId = Member!.MemberId,
             // A copy starts un-favorited and without a public slug (the slug is unique).
             IsFavorite = false,
             PublicSlug = null,
@@ -539,9 +544,10 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current)
             }
         }
 
+        var newRoot = newPages.First(p => p.Id == pageIdMap[pageId]);
+        activity.Add(page.WorkspaceId, Member!, ActivityTypes.PageCreated, newRoot.Id, newRoot.Title, $"duplicated page \"{page.Title}\"");
         await db.SaveChangesAsync(ct);
 
-        var newRoot = newPages.First(p => p.Id == pageIdMap[pageId]);
         return ServiceResult<PageDetailResponse>.Ok(await ToDetailAsync(newRoot, ct));
     }
 

@@ -1,5 +1,6 @@
 import { api } from "./client";
 import type {
+  ActivityItem,
   Backlink,
   Block,
   Comment,
@@ -15,6 +16,7 @@ import type {
   Member,
   MoveBlockInput,
   MovePageInput,
+  Notification,
   PageDetail,
   PageTreeNode,
   PageVisibility,
@@ -160,3 +162,17 @@ export const duplicatePage = (pageId: string) => api.post<PageDetail>(`/api/page
 
 export const exportPage = (pageId: string, subtree = false, signal?: AbortSignal) =>
   api.get<ExportResult>(`/api/pages/${pageId}/export?subtree=${subtree}`, signal);
+
+// ---- notifications & activity ----
+
+export const getNotifications = (signal?: AbortSignal) =>
+  api.get<Notification[]>("/api/notifications", signal);
+
+export const markNotificationRead = (notificationId: string) =>
+  api.post<void>(`/api/notifications/${notificationId}/read`);
+
+export const markAllNotificationsRead = () =>
+  api.post<{ count: number }>("/api/notifications/read-all");
+
+export const getActivity = (workspaceId: string, signal?: AbortSignal) =>
+  api.get<ActivityItem[]>(`/api/workspaces/${workspaceId}/activity`, signal);
