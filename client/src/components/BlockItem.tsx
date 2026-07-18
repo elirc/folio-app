@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Block, BlockContent, BlockType } from "../api/types";
+import type { Block, BlockContent, BlockType, LinkTarget } from "../api/types";
 import { createBlock, deleteBlock, moveBlock, updateBlock } from "../api/folio";
 import { AddBlockBar } from "./AddBlockBar";
 import { BlockTree } from "./BlockTree";
@@ -10,10 +10,14 @@ interface BlockItemProps {
   total: number;
   pageId: string;
   byParent: Map<string | null, Block[]>;
+  linkTargets: LinkTarget[];
   onChanged: () => void;
 }
 
-export function BlockItem({ block, index, total, pageId, byParent, onChanged }: BlockItemProps) {
+/** Block types whose text can carry an inline page link. */
+const TEXT_TYPES = new Set(["Paragraph", "Heading", "Todo", "Bulleted", "Quote", "Code", "Toggle", "Callout"]);
+
+export function BlockItem({ block, index, total, pageId, byParent, linkTargets, onChanged }: BlockItemProps) {
   const [text, setText] = useState(block.content.text ?? "");
 
   useEffect(() => {
@@ -50,6 +54,13 @@ export function BlockItem({ block, index, total, pageId, byParent, onChanged }: 
     onChanged();
   }
 
+  async function insertLink(target: LinkTarget) {
+    const token = `#[${target.title}](${target.id})`;
+    const next = text.length > 0 ? `${text} ${token}` : token;
+    setText(next);
+    await patch({ ...block.content, text: next });
+  }
+
   const gutter = (
     <div className="block-gutter">
       <button type="button" className="icon-btn" aria-label="Move block up" disabled={index === 0} onClick={() => move(-1)}>
@@ -77,12 +88,16 @@ export function BlockItem({ block, index, total, pageId, byParent, onChanged }: 
           toggleCollapsed={toggleCollapsed}
           patch={patch}
         />
+        {TEXT_TYPES.has(block.type) && linkTargets.length > 0 && (
+          <LinkPicker targets={linkTargets} onPick={insertLink} />
+        )}
         {block.type === "Toggle" && !block.content.collapsed && (
           <div className="toggle-children">
             <BlockTree
               pageId={pageId}
               blocks={byParent.get(block.id) ?? []}
               byParent={byParent}
+              linkTargets={linkTargets}
               onChanged={onChanged}
             />
             <AddBlockBar onAdd={addChild} label="Add block inside toggle" />
@@ -207,6 +222,29 @@ function TextArea({ block, text, setText, saveText, placeholder, code, rows }: T
       onChange={(e) => setText(e.target.value)}
       onBlur={saveText}
     />
+  );
+}
+
+function LinkPicker({ targets, onPick }: { targets: LinkTarget[]; onPick: (target: LinkTarget) => void }) {
+  return (
+    <select
+      className="link-picker"
+      aria-label="Insert page link"
+      value=""
+      onChange={(e) => {
+        const target = targets.find((t) => t.id === e.target.value);
+        if (target) {
+          onPick(target);
+        }
+      }}
+    >
+      <option value="">🔗 Link…</option>
+      {targets.map((t) => (
+        <option key={t.id} value={t.id}>
+          {t.title}
+        </option>
+      ))}
+    </select>
   );
 }
 

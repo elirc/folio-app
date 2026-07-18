@@ -12,6 +12,7 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
     public DbSet<PageVersion> PageVersions => Set<PageVersion>();
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<CommentMention> CommentMentions => Set<CommentMention>();
+    public DbSet<PageLink> PageLinks => Set<PageLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -154,6 +155,22 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(m => new { m.CommentId, m.MemberId }).IsUnique();
+        });
+
+        modelBuilder.Entity<PageLink>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.Property(l => l.TargetTitle).HasMaxLength(400);
+
+            // Only the source block is a real FK; deleting the block removes its
+            // links (cascade). The target is a plain id so links can dangle.
+            e.HasOne(l => l.SourceBlock)
+                .WithMany()
+                .HasForeignKey(l => l.SourceBlockId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(l => l.TargetPageId);
+            e.HasIndex(l => l.SourcePageId);
         });
     }
 }

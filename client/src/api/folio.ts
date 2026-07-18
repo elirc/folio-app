@@ -1,11 +1,13 @@
 import { api } from "./client";
 import type {
+  Backlink,
   Block,
   Comment,
   CreateBlockInput,
   CreateCommentInput,
   CreatePageInput,
   Favorite,
+  OutgoingLink,
   LoginInput,
   LoginResponse,
   Member,
@@ -128,3 +130,11 @@ export const unresolveComment = (commentId: string) =>
   api.post<Comment>(`/api/comments/${commentId}/unresolve`);
 
 export const deleteComment = (commentId: string) => api.delete<void>(`/api/comments/${commentId}`);
+
+// ---- links & backlinks ----
+
+export const getBacklinks = (pageId: string, signal?: AbortSignal) =>
+  api.get<Backlink[]>(`/api/pages/${pageId}/backlinks`, signal);
+
+export const getOutgoingLinks = (pageId: string, signal?: AbortSignal) =>
+  api.get<OutgoingLink[]>(`/api/pages/${pageId}/links`, signal);

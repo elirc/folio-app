@@ -226,3 +226,26 @@ export interface CreateCommentInput {
   blockId?: string | null;
   parentCommentId?: string | null;
 }
+
+// ---- links & backlinks ----
+
+export interface Backlink {
+  sourcePageId: string;
+  sourcePageTitle: string;
+  sourcePageIcon: string | null;
+  sourceBlockId: string;
+}
+
+export interface OutgoingLink {
+  targetPageId: string;
+  targetTitle: string;
+  isBroken: boolean;
+  sourceBlockId: string;
+}
+
+/** A page that can be inserted as an inline link. */
+export interface LinkTarget {
+  id: string;
+  title: string;
+  icon: string | null;
+}
