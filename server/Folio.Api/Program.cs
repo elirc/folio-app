@@ -1,9 +1,12 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Folio.Api.Auth;
 using Folio.Infrastructure;
 using Folio.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -64,6 +67,38 @@ builder.Services
     });
 builder.Services.AddAuthorization();
 
+// ---- rate limiting (write endpoints only, partitioned per user) ----
+var writePermitLimit = builder.Configuration.GetValue<int?>("RateLimit:PermitLimit") ?? 300;
+var writeWindowSeconds = builder.Configuration.GetValue<int?>("RateLimit:WindowSeconds") ?? 10;
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var method = context.Request.Method;
+        var path = context.Request.Path.Value ?? string.Empty;
+        var isWrite = !HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) && !HttpMethods.IsOptions(method);
+        // Reads, auth, public-link, and health are never throttled.
+        var exempt = path.StartsWith("/api/auth", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/public", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/health", StringComparison.OrdinalIgnoreCase);
+        if (!isWrite || exempt)
+        {
+            return RateLimitPartition.GetNoLimiter("unlimited");
+        }
+
+        var key = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter($"write:{key}", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = writePermitLimit,
+            Window = TimeSpan.FromSeconds(writeWindowSeconds),
+            QueueLimit = 0,
+        });
+    });
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(ClientCorsPolicy, policy =>
@@ -76,14 +111,41 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Structured per-request logging: method, path, status, and elapsed ms.
+app.Use(async (context, next) =>
+{
+    var started = System.Diagnostics.Stopwatch.GetTimestamp();
+    await next();
+    var elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Folio.Requests");
+    logger.LogInformation("HTTP {Method} {Path} responded {StatusCode} in {ElapsedMs:0.0}ms",
+        context.Request.Method, context.Request.Path.Value, context.Response.StatusCode, elapsedMs);
+});
+
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseCors(ClientCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
-app.MapGet("/health", () => Results.Ok(new HealthResponse("ok")));
+// Liveness + DB probe with a structured body.
+app.MapGet("/health", async (FolioDbContext db, CancellationToken ct) =>
+{
+    bool dbUp;
+    try
+    {
+        dbUp = await db.Database.CanConnectAsync(ct);
+    }
+    catch
+    {
+        dbUp = false;
+    }
+
+    var response = new HealthResponse(dbUp ? "ok" : "degraded", dbUp ? "up" : "down", DateTime.UtcNow);
+    return dbUp ? Results.Ok(response) : Results.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
 
 app.MapControllers();
 
@@ -100,8 +162,8 @@ using (var scope = app.Services.CreateScope())
 
 app.Run();
 
-/// <summary>Health probe payload.</summary>
-public record HealthResponse(string Status);
+/// <summary>Health probe payload: overall status, DB reachability, and a timestamp.</summary>
+public record HealthResponse(string Status, string Database, DateTime Timestamp);
 
 /// <summary>Exposed so integration tests can spin up the API via WebApplicationFactory.</summary>
 public partial class Program;

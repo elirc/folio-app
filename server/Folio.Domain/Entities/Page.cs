@@ -42,6 +42,9 @@ public class Page
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }
 
+    /// <summary>Optimistic-concurrency token; changes on every write, checked on stale updates.</summary>
+    public Guid Version { get; set; } = Guid.NewGuid();
+
     /// <summary>UTC.</summary>
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

@@ -146,6 +146,7 @@ public class PagesController(PageService pages) : ControllerBase
             OperationStatus.Success => Ok(result.Value),
             OperationStatus.NotFound => Problem(statusCode: 404, detail: result.Error),
             OperationStatus.Forbidden => Problem(statusCode: 403, detail: result.Error),
+            OperationStatus.Conflict => Problem(statusCode: 409, detail: result.Error),
             _ => Problem(statusCode: 400, detail: result.Error),
         };
 }

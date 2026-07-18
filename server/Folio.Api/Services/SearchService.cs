@@ -10,6 +10,9 @@ namespace Folio.Api.Services;
 /// <summary>Full-text search over page titles and block text within a workspace.</summary>
 public class SearchService(FolioDbContext db, ICurrentMemberAccessor current)
 {
+    /// <summary>Upper bound on rows a single search returns (pagination audit).</summary>
+    private const int SearchResultCap = 200;
+
     /// <summary>Returns hits (respecting page visibility + filters), or null if the workspace is foreign.</summary>
     public async Task<IReadOnlyList<SearchResultResponse>?> SearchAsync(
         Guid workspaceId,
@@ -58,6 +61,7 @@ public class SearchService(FolioDbContext db, ICurrentMemberAccessor current)
         {
             var filtered = await query0
                 .OrderByDescending(p => p.UpdatedAt)
+                .Take(SearchResultCap)
                 .Select(p => new { p.Id, p.Title, p.Icon, p.UpdatedAt })
                 .ToListAsync(ct);
             return filtered
@@ -70,6 +74,7 @@ public class SearchService(FolioDbContext db, ICurrentMemberAccessor current)
             .Where(p => EF.Functions.Like(p.Title, pattern, "\\")
                 || p.Blocks.Any(b => EF.Functions.Like(b.Content, pattern, "\\")))
             .OrderByDescending(p => p.UpdatedAt)
+            .Take(SearchResultCap)
             .Select(p => new
             {
                 p.Id,

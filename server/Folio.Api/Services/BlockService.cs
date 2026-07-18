@@ -101,6 +101,12 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current, Act
             return denied;
         }
 
+        // Optimistic concurrency: reject a write based on a stale snapshot.
+        if (request.ExpectedVersion is Guid expected && expected != block.Version)
+        {
+            return ServiceResult<BlockResponse>.Conflict("This block was changed by someone else. Reload and try again.");
+        }
+
         if (request.Content is not { ValueKind: JsonValueKind.Object } content)
         {
             return ServiceResult<BlockResponse>.Invalid("Block content must be a JSON object.");
@@ -112,6 +118,7 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current, Act
             block.Type = type;
         }
 
+        block.Version = Guid.NewGuid();
         block.UpdatedAt = Now;
         await SyncLinksAsync(block, ct);
         await TouchPageAsync(block.PageId, ct);
@@ -386,6 +393,7 @@ public class BlockService(FolioDbContext db, ICurrentMemberAccessor current, Act
         block.Type,
         block.Position,
         JsonSerializer.Deserialize<JsonElement>(block.Content),
+        block.Version,
         block.CreatedAt,
         block.UpdatedAt);
 }

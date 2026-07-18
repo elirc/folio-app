@@ -134,8 +134,15 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current, Acti
             return denied;
         }
 
+        // Optimistic concurrency: reject a write based on a stale snapshot.
+        if (request.ExpectedVersion is Guid expected && expected != page.Version)
+        {
+            return ServiceResult<PageDetailResponse>.Conflict("This page was changed by someone else. Reload and try again.");
+        }
+
         page.Title = request.Title!.Trim();
         page.Icon = request.Icon;
+        page.Version = Guid.NewGuid();
         page.UpdatedAt = Now;
         activity.Add(page.WorkspaceId, Member!, ActivityTypes.PageUpdated, page.Id, page.Title, $"renamed page to \"{page.Title}\"");
         await db.SaveChangesAsync(ct);
@@ -770,6 +777,7 @@ public class PageService(FolioDbContext db, ICurrentMemberAccessor current, Acti
             page.Permission,
             page.PublicSlug,
             page.IsFavorite,
+            page.Version,
             page.CreatedAt,
             page.UpdatedAt,
             breadcrumb);

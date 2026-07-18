@@ -58,6 +58,7 @@ export interface PageDetail {
   permission: SharePermission;
   publicSlug: string | null;
   isFavorite: boolean;
+  version: string;
   createdAt: string;
   updatedAt: string;
   breadcrumb: BreadcrumbItem[];
@@ -115,6 +116,7 @@ export interface CreatePageInput {
 export interface UpdatePageInput {
   title: string;
   icon?: string | null;
+  expectedVersion?: string | null;
 }
 
 export interface MovePageInput {
@@ -156,6 +158,7 @@ export interface Block {
   type: BlockType;
   position: number;
   content: BlockContent;
+  version: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -170,6 +173,7 @@ export interface CreateBlockInput {
 export interface UpdateBlockInput {
   type?: BlockType;
   content: BlockContent;
+  expectedVersion?: string | null;
 }
 
 export interface MoveBlockInput {

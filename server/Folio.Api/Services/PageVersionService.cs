@@ -52,9 +52,11 @@ public class PageVersionService(FolioDbContext db, ICurrentMemberAccessor curren
             return denied;
         }
 
+        // Capped for the pagination audit — the most recent 200 versions.
         var versions = await db.PageVersions
             .Where(v => v.PageId == pageId)
             .OrderByDescending(v => v.VersionNumber)
+            .Take(200)
             .Select(v => new VersionSummaryResponse(
                 v.VersionNumber, v.Title, v.Icon, v.BlockCount, v.CreatedByName, v.Label, v.CreatedAt))
             .ToListAsync(ct);

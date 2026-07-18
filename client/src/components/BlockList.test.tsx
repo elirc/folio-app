@@ -8,8 +8,8 @@ import { installFetchMock } from "../test/fetchMock";
 afterEach(() => vi.unstubAllGlobals());
 
 const blocks: Block[] = [
-  { id: "b1", pageId: "pg", parentBlockId: null, type: "Heading", position: 0, content: { text: "Welcome", level: 1 }, createdAt: "", updatedAt: "" },
-  { id: "b2", pageId: "pg", parentBlockId: null, type: "Todo", position: 1, content: { text: "Task", checked: false }, createdAt: "", updatedAt: "" },
+  { id: "b1", pageId: "pg", parentBlockId: null, type: "Heading", position: 0, content: { text: "Welcome", level: 1 }, version: "v0", createdAt: "", updatedAt: "" },
+  { id: "b2", pageId: "pg", parentBlockId: null, type: "Todo", position: 1, content: { text: "Task", checked: false }, version: "v0", createdAt: "", updatedAt: "" },
 ];
 
 describe("BlockList", () => {
@@ -27,7 +27,7 @@ describe("BlockList", () => {
       "/api/pages/pg/blocks": { json: blocks },
       "POST /api/pages/pg/blocks": {
         status: 201,
-        json: { id: "b3", pageId: "pg", parentBlockId: null, type: "Todo", position: 2, content: { text: "" }, createdAt: "", updatedAt: "" },
+        json: { id: "b3", pageId: "pg", parentBlockId: null, type: "Todo", position: 2, content: { text: "" }, version: "v0", createdAt: "", updatedAt: "" },
       },
     });
 
@@ -63,10 +63,10 @@ describe("BlockList", () => {
 
   it("renders v2 block types (callout, divider, image, table)", async () => {
     const v2: Block[] = [
-      { id: "c1", pageId: "pg", parentBlockId: null, type: "Callout", position: 0, content: { text: "Heads up", emoji: "💡" }, createdAt: "", updatedAt: "" },
-      { id: "c2", pageId: "pg", parentBlockId: null, type: "Divider", position: 1, content: {}, createdAt: "", updatedAt: "" },
-      { id: "c3", pageId: "pg", parentBlockId: null, type: "Image", position: 2, content: { url: "https://x/y.png", alt: "Diagram" }, createdAt: "", updatedAt: "" },
-      { id: "c4", pageId: "pg", parentBlockId: null, type: "Table", position: 3, content: { rows: [["A", "B"]] }, createdAt: "", updatedAt: "" },
+      { id: "c1", pageId: "pg", parentBlockId: null, type: "Callout", position: 0, content: { text: "Heads up", emoji: "💡" }, version: "v0", createdAt: "", updatedAt: "" },
+      { id: "c2", pageId: "pg", parentBlockId: null, type: "Divider", position: 1, content: {}, version: "v0", createdAt: "", updatedAt: "" },
+      { id: "c3", pageId: "pg", parentBlockId: null, type: "Image", position: 2, content: { url: "https://x/y.png", alt: "Diagram" }, version: "v0", createdAt: "", updatedAt: "" },
+      { id: "c4", pageId: "pg", parentBlockId: null, type: "Table", position: 3, content: { rows: [["A", "B"]] }, version: "v0", createdAt: "", updatedAt: "" },
     ];
     installFetchMock({ "/api/pages/pg/blocks": { json: v2 } });
 
@@ -81,14 +81,14 @@ describe("BlockList", () => {
 
   it("renders toggle children and adds a child under the toggle", async () => {
     const nested: Block[] = [
-      { id: "t1", pageId: "pg", parentBlockId: null, type: "Toggle", position: 0, content: { text: "More", collapsed: false }, createdAt: "", updatedAt: "" },
-      { id: "t1a", pageId: "pg", parentBlockId: "t1", type: "Bulleted", position: 0, content: { text: "Nested item" }, createdAt: "", updatedAt: "" },
+      { id: "t1", pageId: "pg", parentBlockId: null, type: "Toggle", position: 0, content: { text: "More", collapsed: false }, version: "v0", createdAt: "", updatedAt: "" },
+      { id: "t1a", pageId: "pg", parentBlockId: "t1", type: "Bulleted", position: 0, content: { text: "Nested item" }, version: "v0", createdAt: "", updatedAt: "" },
     ];
     const fetchMock = installFetchMock({
       "/api/pages/pg/blocks": { json: nested },
       "POST /api/pages/pg/blocks": {
         status: 201,
-        json: { id: "t1b", pageId: "pg", parentBlockId: "t1", type: "Paragraph", position: 1, content: { text: "" }, createdAt: "", updatedAt: "" },
+        json: { id: "t1b", pageId: "pg", parentBlockId: "t1", type: "Paragraph", position: 1, content: { text: "" }, version: "v0", createdAt: "", updatedAt: "" },
       },
     });
 

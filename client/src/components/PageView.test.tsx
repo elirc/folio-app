@@ -18,6 +18,7 @@ const pageDetail = {
   permission: "View",
   publicSlug: null,
   isFavorite: false,
+  version: "v1",
   createdAt: "",
   updatedAt: "",
   breadcrumb: [
@@ -51,7 +52,26 @@ describe("PageView", () => {
       const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
       expect(putCall).toBeDefined();
       expect(putCall![1]?.body).toContain("Setup");
+      // The current version is sent for optimistic concurrency.
+      expect(putCall![1]?.body).toContain('"expectedVersion":"v1"');
     });
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("alerts and reloads when a rename hits a 409 conflict", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    installFetchMock({
+      "/api/pages/p2": { json: pageDetail },
+      "PUT /api/pages/p2": { status: 409, json: { detail: "This page was changed by someone else." } },
+    });
+    renderWithRouter(<PageView pageId="p2" workspaceId="w1" onChanged={vi.fn()} />);
+
+    const input = await screen.findByLabelText("Page title");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Setup");
+    await userEvent.tab(); // blur → PUT → 409
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalled());
+    alertSpy.mockRestore();
   });
 });

@@ -33,11 +33,13 @@ public partial class CommentService(FolioDbContext db, ICurrentMemberAccessor cu
             return denied;
         }
 
+        // Capped for the pagination audit — a page's most recent 500 comments.
         var comments = await db.Comments
             .Where(c => c.PageId == pageId)
             .Include(c => c.Mentions)
                 .ThenInclude(m => m.Member)
             .OrderBy(c => c.CreatedAt)
+            .Take(500)
             .ToListAsync(ct);
 
         return ServiceResult<IReadOnlyList<CommentResponse>>.Ok(comments.Select(ToResponse).ToList());
