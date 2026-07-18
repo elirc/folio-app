@@ -7,10 +7,11 @@ interface BlockTreeProps {
   byParent: Map<string | null, Block[]>;
   linkTargets: LinkTarget[];
   onChanged: () => void;
+  readOnly?: boolean;
 }
 
 /** Renders one level of sibling blocks in order; toggles recurse via BlockItem. */
-export function BlockTree({ pageId, blocks, byParent, linkTargets, onChanged }: BlockTreeProps) {
+export function BlockTree({ pageId, blocks, byParent, linkTargets, onChanged, readOnly = false }: BlockTreeProps) {
   return (
     <>
       {blocks.map((block, index) => (
@@ -23,6 +24,7 @@ export function BlockTree({ pageId, blocks, byParent, linkTargets, onChanged }: 
           byParent={byParent}
           linkTargets={linkTargets}
           onChanged={onChanged}
+          readOnly={readOnly}
         />
       ))}
     </>

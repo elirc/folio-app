@@ -59,4 +59,27 @@ describe("NotificationInbox", () => {
       expect(call).toBeDefined();
     });
   });
+
+  it("marks a single unread notification read when opened", async () => {
+    const fetchMock = installFetchMock({
+      "/api/notifications": { json: notifications },
+      "POST /api/notifications/n1/read": { status: 204 }, // 204 → null body
+    });
+
+    renderInbox();
+    await userEvent.click(await screen.findByLabelText("Notifications (1 unread)"));
+
+    // Clicking the unread item marks just that one read (POST .../n1/read).
+    await userEvent.click(await screen.findByText('commented on "Getting Started"'));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([url, init]) => String(url).endsWith("/notifications/n1/read") && init?.method === "POST",
+      );
+      expect(call).toBeDefined();
+    });
+    // The already-read notification must not be re-marked.
+    const readCallForN2 = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/notifications/n2/read"));
+    expect(readCallForN2).toBeUndefined();
+  });
 });

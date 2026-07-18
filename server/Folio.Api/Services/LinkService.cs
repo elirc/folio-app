@@ -64,17 +64,26 @@ public class LinkService(FolioDbContext db, ICurrentMemberAccessor current)
             return denied;
         }
 
+        var member = Member!;
+
         var links = await db.PageLinks
             .Where(l => l.SourcePageId == pageId)
             .Select(l => new { l.TargetPageId, l.TargetTitle, l.SourceBlockId })
             .ToListAsync(ct);
 
-        // A target is valid when it exists and is not trashed (query filter).
+        // A target resolves to its live title only when it exists, is not trashed
+        // (query filter), and the caller is allowed to see it. A target the caller
+        // can't see (e.g. a page since made private) is reported as broken so its
+        // current title never leaks — the stored token title, which is already
+        // present in the source block's own visible text, is shown instead. This
+        // mirrors the visibility filtering already applied to backlinks.
         var liveTargets = await db.Pages
             .Where(p => links.Select(l => l.TargetPageId).Contains(p.Id))
-            .Select(p => new { p.Id, p.Title })
+            .Select(p => new { p.Id, p.Title, p.Visibility })
             .ToListAsync(ct);
-        var liveById = liveTargets.ToDictionary(p => p.Id, p => p.Title);
+        var liveById = liveTargets
+            .Where(p => PageAuthorization.CanSeeVisibility(member, p.Visibility))
+            .ToDictionary(p => p.Id, p => p.Title);
 
         var result = links
             .Select(l => liveById.TryGetValue(l.TargetPageId, out var title)
