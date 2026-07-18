@@ -75,6 +75,21 @@ export interface SearchResult {
   icon: string | null;
   matchedTitle: boolean;
   snippet: string | null;
+  updatedAt: string;
+}
+
+export interface SearchFilters {
+  author?: string | null;
+  favorites?: boolean;
+  updatedAfter?: string | null;
+  updatedBefore?: string | null;
+}
+
+export interface QuickOpenResult {
+  pageId: string;
+  title: string;
+  icon: string | null;
+  updatedAt: string;
 }
 
 export interface TrashItem {
