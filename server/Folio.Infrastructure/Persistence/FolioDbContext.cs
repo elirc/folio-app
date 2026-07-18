@@ -13,6 +13,7 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<CommentMention> CommentMentions => Set<CommentMention>();
     public DbSet<PageLink> PageLinks => Set<PageLink>();
+    public DbSet<PageTemplate> PageTemplates => Set<PageTemplate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -171,6 +172,24 @@ public class FolioDbContext(DbContextOptions<FolioDbContext> options) : DbContex
 
             e.HasIndex(l => l.TargetPageId);
             e.HasIndex(l => l.SourcePageId);
+        });
+
+        modelBuilder.Entity<PageTemplate>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Name).IsRequired().HasMaxLength(200);
+            e.Property(t => t.Description).HasMaxLength(1000);
+            e.Property(t => t.SourceTitle).IsRequired().HasMaxLength(400);
+            e.Property(t => t.SourceIcon).HasMaxLength(40);
+            e.Property(t => t.BlocksJson).IsRequired();
+            e.Property(t => t.CreatedByName).HasMaxLength(200);
+
+            e.HasOne(t => t.Workspace)
+                .WithMany()
+                .HasForeignKey(t => t.WorkspaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(t => t.WorkspaceId);
         });
     }
 }

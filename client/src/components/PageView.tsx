@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { PageDetail } from "../api/types";
-import { favoritePage, getPage, renamePage, unfavoritePage } from "../api/folio";
+import {
+  createTemplate,
+  duplicatePage,
+  exportPage,
+  favoritePage,
+  getPage,
+  renamePage,
+  unfavoritePage,
+} from "../api/folio";
+import { downloadMarkdown } from "../lib/download";
 import { useAsync } from "../hooks/useAsync";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { BlockList } from "./BlockList";
@@ -16,6 +25,7 @@ interface PageViewProps {
 }
 
 export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
+  const navigate = useNavigate();
   const { data, error, loading, reload } = useAsync<PageDetail>(
     (signal) => getPage(pageId, signal),
     [pageId],
@@ -70,6 +80,25 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
     onChanged();
   }
 
+  async function exportMarkdown() {
+    const result = await exportPage(pageId, true);
+    downloadMarkdown(result.filename, result.markdown);
+  }
+
+  async function duplicate() {
+    const copy = await duplicatePage(pageId);
+    onChanged();
+    navigate(`/w/${workspaceId}/p/${copy.id}`);
+  }
+
+  async function saveAsTemplate() {
+    const name = window.prompt("Template name", data?.title ?? "Template");
+    if (!name) {
+      return;
+    }
+    await createTemplate(pageId, { name });
+  }
+
   if (loading) {
     return <p className="muted">Loading page…</p>;
   }
@@ -110,6 +139,15 @@ export function PageView({ pageId, workspaceId, onChanged }: PageViewProps) {
           </button>
           <button type="button" className="share-btn" onClick={() => setHistoryOpen((v) => !v)}>
             History
+          </button>
+          <button type="button" className="share-btn" onClick={duplicate}>
+            Duplicate
+          </button>
+          <button type="button" className="share-btn" onClick={saveAsTemplate}>
+            Save as template
+          </button>
+          <button type="button" className="share-btn" onClick={exportMarkdown}>
+            Export
           </button>
           <button type="button" className="share-btn" onClick={() => setShareOpen((v) => !v)}>
             Share

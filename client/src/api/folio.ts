@@ -6,6 +6,8 @@ import type {
   CreateBlockInput,
   CreateCommentInput,
   CreatePageInput,
+  CreateTemplateInput,
+  ExportResult,
   Favorite,
   OutgoingLink,
   LoginInput,
@@ -20,6 +22,7 @@ import type {
   SharePermission,
   ShareSettings,
   TrashItem,
+  Template,
   UpdateBlockInput,
   UpdatePageInput,
   VersionDetail,
@@ -138,3 +141,22 @@ export const getBacklinks = (pageId: string, signal?: AbortSignal) =>
 
 export const getOutgoingLinks = (pageId: string, signal?: AbortSignal) =>
   api.get<OutgoingLink[]>(`/api/pages/${pageId}/links`, signal);
+
+// ---- templates, duplicate & export ----
+
+export const getTemplates = (workspaceId: string, signal?: AbortSignal) =>
+  api.get<Template[]>(`/api/workspaces/${workspaceId}/templates`, signal);
+
+export const createTemplate = (pageId: string, input: CreateTemplateInput) =>
+  api.post<Template>(`/api/pages/${pageId}/templates`, input);
+
+export const instantiateTemplate = (workspaceId: string, templateId: string, parentId?: string | null) =>
+  api.post<PageDetail>(`/api/workspaces/${workspaceId}/templates/${templateId}/instantiate`, { parentId: parentId ?? null });
+
+export const deleteTemplate = (workspaceId: string, templateId: string) =>
+  api.delete<void>(`/api/workspaces/${workspaceId}/templates/${templateId}`);
+
+export const duplicatePage = (pageId: string) => api.post<PageDetail>(`/api/pages/${pageId}/duplicate`);
+
+export const exportPage = (pageId: string, subtree = false, signal?: AbortSignal) =>
+  api.get<ExportResult>(`/api/pages/${pageId}/export?subtree=${subtree}`, signal);
