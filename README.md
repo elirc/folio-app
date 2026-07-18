@@ -10,6 +10,20 @@ Workspaces contain **pages** arranged in a nested tree; each page is a tree of t
 comments & @mentions, inline page links & backlinks, templates & Markdown export,
 notifications, filtered search + quick-open, sharing, favorites, and trash/restore.
 
+## Documentation
+
+Full docs live in [`docs/`](docs/):
+
+- [**Architecture**](docs/architecture.md) — layout, layering, page/block model,
+  permissions (incl. the shared-favorite caveat), history, notifications, links,
+  concurrency, and SQLite choices.
+- [**API reference**](docs/api-reference.md) — every endpoint: method, route, auth,
+  request/response shapes, and error codes.
+- [**Getting started**](docs/getting-started.md) — run both halves, seed accounts, and a
+  login → page → blocks → share → comment → search → export walkthrough.
+- [**Testing**](docs/testing.md) — test taxonomy, harnesses, and the migration-drift guard.
+- [**ADRs**](docs/adr/README.md) — the non-obvious decisions and their trade-offs.
+
 ## Features
 
 ### v1 (PRs #1–#6)
@@ -90,7 +104,8 @@ dotnet run --project Folio.Api      # http://localhost:5080
 Health probe:
 
 ```bash
-curl http://localhost:5080/health   # {"status":"ok"}
+curl http://localhost:5080/health
+# {"status":"ok","database":"up","timestamp":"2026-…Z"}   (503 + "degraded"/"down" if the DB is unreachable)
 ```
 
 ### Server tests
@@ -127,6 +142,9 @@ Client tests stub `fetch`, so **no running server is required**.
 ---
 
 ## API reference
+
+A summary follows; the **full reference** (request/response shapes + error codes per
+endpoint) is in [`docs/api-reference.md`](docs/api-reference.md).
 
 Base URL `http://localhost:5080`. All errors are RFC 7807 `application/problem+json`.
 
@@ -194,11 +212,14 @@ Write endpoints are rate-limited per user (429 when exceeded).
 
 | Suite | Count |
 | ----- | ----- |
-| Server (xUnit + WebApplicationFactory, in-memory SQLite) | 91 |
-| Client (Vitest + React Testing Library, jsdom + fetch stubs) | 38 |
+| Server (xUnit + WebApplicationFactory, in-memory SQLite) | 150 |
+| Client (Vitest + React Testing Library, jsdom + fetch stubs) | 45 |
 
 Seeded logins (all password `password`): `ada@acme.test` (Owner), `grace@acme.test` (Editor),
 `linus@acme.test` (Viewer); plus an isolated `eve@globex.test` (Owner) workspace.
+
+See [`docs/testing.md`](docs/testing.md) for the full test taxonomy, harnesses, and the
+migration-drift guard.
 
 ---
 
